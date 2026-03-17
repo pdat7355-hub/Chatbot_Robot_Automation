@@ -1,17 +1,38 @@
 const express = require('express');
-const { getInventory, saveOrder } = require('./services/googleSheets');
+const { getAppData, saveOrder } = require('./services/googleSheets');
 const { getAIReply } = require('./services/aiService');
-const axios = require('axios');
 
 const app = express();
 app.use(express.json());
+app.use(express.static('public'));
 
-// Webhook xử lý tin nhắn
-app.post('/webhook', async (req, res) => {
-    // Logic nhận tin nhắn từ Facebook/Telegram ở đây
-    // Sau đó gọi getAIReply và cuối cùng gửi trả khách
-    res.status(200).send('OK');
+let allUsersHistory = {};
+
+app.post('/chat', async (req, res) => {
+    const { message, userId } = req.body;
+    const { shopProfile, khoHang } = await getAppData();
+
+    if (!allUsersHistory[userId]) allUsersHistory[userId] = [];
+    let userHistory = allUsersHistory[userId];
+    userHistory.push({ role: "user", content: message });
+
+    try {
+        let aiReply = await getAIReply(userHistory, shopProfile, khoHang);
+
+        if (aiReply.includes("[CHOT_DON:")) {
+            const orderRaw = aiReply.split("[CHOT_DON:")[1].split("]")[0];
+            const parts = orderRaw.split("|").map(p => p.trim());
+            await saveOrder(parts);
+            aiReply = aiReply.replace(/\[CHOT_DON:.*?\]/g, "✅ Shop đã chốt đơn thành công!");
+        }
+
+        userHistory.push({ role: "assistant", content: aiReply });
+        if (userHistory.length > 20) userHistory.shift();
+        res.json({ reply: aiReply });
+
+    } catch (error) {
+        res.status(500).json({ reply: "Dạ hệ thống bận tí ạ!" });
+    }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Robot đang chạy tại cổng ${PORT}`));
+module.exports = app;
