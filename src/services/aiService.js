@@ -1,12 +1,17 @@
 const axios = require('axios');
 
-async function getAIReply(userMessage, history, context) {
+async function getAIReply(userHistory, shopProfile, khoHang) {
     const response = await axios.post("https://openrouter.ai/api/v1/chat/completions", {
-        model: "google/gemini-2.0-flash-001",
+        model: "google/gemini-2.0-flash-001", 
         messages: [
-            { role: "system", content: `Bạn là trợ lý shop Hương Kid. Kho: ${context}` },
-            ...history,
-            { role: "user", content: userMessage }
+            {
+                role: "system",
+                content: `Bạn là trợ lý ảo shop Hương Kid. 
+                THÔNG TIN SHOP: ${shopProfile}
+                KHO: ${khoHang}
+                QUY TẮC: ... (Giữ nguyên quy tắc của bạn)`
+            },
+            ...userHistory
         ]
     }, { headers: { "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}` } });
 
