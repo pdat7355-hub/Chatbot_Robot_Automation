@@ -1,0 +1,12 @@
+/project-root
+│── /src
+│   ├── /services
+│   │   ├── googleSheets.js  <-- Chỉ xử lý Đọc/Ghi Sheets
+│   │   ├── facebook.js      <-- Chỉ xử lý gửi tin nhắn FB
+│   │   └── aiService.js     <-- Chỉ xử lý gọi Gemini/OpenRouter
+│   ├── /routes
+│   │   └── webhook.js       <-- Nơi nhận dữ liệu từ FB/Telegram
+│   └── app.js               <-- File chính để khởi chạy Server
+│── .env                     <-- Lưu token/mật mã
+│── package.json
+└── index.js                 <-- File mồi để Render gọi
