@@ -7,6 +7,5 @@
 │   ├── /routes
 │   │   └── webhook.js       <-- Nơi nhận dữ liệu từ FB/Telegram
 │   └── app.js               <-- File chính để khởi chạy Server
-│── .env                     <-- Lưu token/mật mã
 │── package.json
 └── index.js                 <-- File mồi để Render gọi
