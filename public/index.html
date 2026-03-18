@@ -70,12 +70,19 @@
             const div = document.createElement('div');
             div.className = 'msg ' + sender;
             
-            // Xử lý xuống dòng và ảnh [IMG]
+            // 1. Chuyển đổi ký tự xuống dòng
             let content = text.replace(/\n/g, '<br>');
-            content = content.replace(/\[IMG\](.*?)\[\/IMG\]/g, (match, url) => {
-                return `<img src="${url.trim()}" class="chat-img" onclick="window.open('${url.trim()}', '_blank')">`;
+        
+            // 2. Tự động biến link ảnh thô thành thẻ <img>
+            content = content.replace(/(https?:\/\/[^\s]+(?:\.jpg|\.png|\.webp))/g, (url) => {
+                return `<img src="${url}" class="chat-img" style="width:100%; border-radius:8px; margin-top:5px;">`;
             });
-
+        
+            // 3. Biến mã [IMG] thành thẻ <img> (đề phòng AI dùng mã này)
+            content = content.replace(/\[IMG\](.*?)\[\/IMG\]/g, (match, url) => {
+                return `<img src="${url.trim()}" class="chat-img" style="width:100%; border-radius:8px; margin-top:5px;">`;
+            });
+        
             div.innerHTML = content;
             messageContainer.appendChild(div);
             messageContainer.scrollTop = messageContainer.scrollHeight;
