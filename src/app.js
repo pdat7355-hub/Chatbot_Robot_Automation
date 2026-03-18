@@ -40,18 +40,34 @@ app.post('/chat', async (req, res) => {
         const { shopProfile, khoHang } = await getAppData();
         if (!allUsersHistory[userId]) allUsersHistory[userId] = [];
         let userHistory = allUsersHistory[userId];
+
         userHistory.push({ role: "user", content: message });
+
         let aiReply = await getAIReply(userHistory, shopProfile, khoHang);
-        
+
+        // Xử lý chốt đơn ngầm
         if (aiReply.includes("[CHOT_DON:")) {
-            const orderRaw = aiReply.split("[CHOT_DON:")[1].split("]")[0];
-            const parts = orderRaw.split("|").map(p => p.trim());
-            await saveOrder(parts);
-            aiReply = aiReply.replace(/\[CHOT_DON:.*?\]/g, "✅ Shop Hương Kid đã chốt đơn thành công!");
+            try {
+                const orderRaw = aiReply.split("[CHOT_DON:")[1].split("]")[0];
+                const parts = orderRaw.split("|").map(p => p.trim());
+                
+                // Gọi hàm lưu vào Google Sheets (Đảm bảo đã import saveOrder)
+                await saveOrder(parts); 
+
+                // Thay thế mã chốt đơn bằng câu thông báo thân thiện
+                aiReply = aiReply.replace(/\[CHOT_DON:.*?\]/g, "✅ Shop Hương Kid đã lưu đơn thành công cho chị rồi ạ!");
+            } catch (err) {
+                console.error("Lỗi ghi đơn:", err);
+            }
         }
+
         userHistory.push({ role: "assistant", content: aiReply });
+        if (userHistory.length > 15) userHistory.splice(0, 2);
+
         res.json({ reply: aiReply });
-    } catch (e) { res.status(500).json({ reply: "Hệ thống bận tí ạ!" }); }
+    } catch (error) {
+        res.status(500).json({ reply: "Dạ em bận tí, chị nhắn lại nha!" });
+    }
 });
 
 module.exports = app;
