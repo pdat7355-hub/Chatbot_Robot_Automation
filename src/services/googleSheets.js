@@ -65,6 +65,30 @@ async function getAppData() {
     }
 }
 
+// Hàm lưu nhập kho
+async function addProduct(parts) {
+    try {
+        const docProd = new GoogleSpreadsheet(process.env.ID_FILE_PRODUCT, auth);
+        await docProd.loadInfo();
+        const sheet = docProd.sheetsByIndex[0];
+
+        await sheet.addRow({
+            'Tên': parts[0],
+            'Giá': parts[1],
+            'Size': parts[2],
+            'Ảnh': parts[3] || ''
+        });
+
+        // Xóa cache để AI cập nhật hàng mới ngay lập tức
+        cachedData.khoHang = ""; 
+        return true;
+    } catch (err) {
+        console.error(err);
+        return false;
+    }
+}
+
+
 // Hàm lưu đơn hàng (Cái này không cache vì phải ghi thực tế)
 async function saveOrder(parts) {
     try {
@@ -84,5 +108,9 @@ async function saveOrder(parts) {
         console.error("❌ Lỗi lưu đơn:", err.message);
     }
 }
+
+
+
+
 
 module.exports = { getAppData, saveOrder };
