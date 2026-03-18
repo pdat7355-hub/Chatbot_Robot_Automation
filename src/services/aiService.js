@@ -1,28 +1,42 @@
-// ... (phần require bên trên giữ nguyên)
+const axios = require('axios');
+
 async function getAIReply(userHistory, shopProfile, khoHang) {
     try {
-        const response = await axios.post("https://openrouter.ai/api/v1/chat/completions", { // SỬA ĐOÀN NÀY: /api/v1/
-            model: "google/gemini-2.0-flash-001",
+        // Đảm bảo dùng đúng link /api/v1/ như code cũ của bạn
+        const response = await axios.post("https://openrouter.ai/api/v1/chat/completions", {
+            model: "google/gemini-2.0-flash-001", 
             messages: [
                 {
                     role: "system",
-                    content: `Bạn là nhân viên bán hàng tại Hương Kid. Thông tin shop: ${shopProfile}. Kho hàng: ${JSON.stringify(khoHang)}`
+                    content: `Bạn là trợ lý ảo shop Hương Kid. 
+                    THÔNG TIN SHOP: ${shopProfile}
+                    KHO: ${khoHang}
+                    
+                    QUY TẮC THÔNG TIN KHÁCH HÀNG:
+                    1. Tên, SĐT, Địa chỉ: Nếu đã có trong lịch sử thì KHÔNG hỏi lại.
+                    2. CÂN NẶNG & SIZE: Ưu tiên cân nặng khách nhắc tới mới nhất.
+                    3. Mã chốt đơn bắt buộc: [CHOT_DON: Tên | Sản phẩm | SĐT | Địa chỉ]`
                 },
                 ...userHistory
             ]
         }, { 
             headers: { 
                 "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-                "Content-Type": "application/json",
-                "HTTP-Referer": "https://chatbot-robot-automation.onrender.com", // Link web của bạn
-                "X-Title": "Huong Kid Chatbot"
+                "Content-Type": "application/json"
             } 
         });
 
-        return response.data.choices[0].message.content;
+        if (response.data && response.data.choices && response.data.choices[0]) {
+            return response.data.choices[0].message.content;
+        } else {
+            throw new Error("Phản hồi từ AI không đúng định dạng");
+        }
+
     } catch (error) {
-        // In lỗi ra Log của Render để Đạt dễ xem
-        console.error("CHI TIẾT LỖI AI:", error.response ? error.response.data : error.message);
-        return "Dạ em đây ạ! Chị nhắn lại giúp em mẫu chị ưng với nhé, nãy mạng bên em hơi lag tí ạ.";
+        // Log lỗi này ra để Đạt xem trên Render Dashboard -> Logs
+        console.error("LỖI GỌI OPENROUTER:", error.response ? error.response.data : error.message);
+        throw error; // Đẩy lỗi ra ngoài để app.js bắt được
     }
 }
+
+module.exports = { getAIReply };
