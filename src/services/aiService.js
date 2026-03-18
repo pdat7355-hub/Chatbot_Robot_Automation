@@ -2,41 +2,29 @@ const axios = require('axios');
 
 async function getAIReply(userHistory, shopProfile, khoHang) {
     try {
-        // Đảm bảo dùng đúng link /api/v1/ như code cũ của bạn
         const response = await axios.post("https://openrouter.ai/api/v1/chat/completions", {
-            model: "google/gemini-2.0-flash-001", 
+            model: "google/gemini-2.0-flash-001",
             messages: [
                 {
                     role: "system",
-                    content: `Bạn là trợ lý ảo shop Hương Kid. 
+                    content: `Bạn là nhân viên bán hàng tại "Hương Kid - Shop Bé Trai". 
                     THÔNG TIN SHOP: ${shopProfile}
-                    KHO: ${khoHang}
-                    
-                    QUY TẮC THÔNG TIN KHÁCH HÀNG:
-                    1. Tên, SĐT, Địa chỉ: Nếu đã có trong lịch sử thì KHÔNG hỏi lại.
-                    2. CÂN NẶNG & SIZE: Ưu tiên cân nặng khách nhắc tới mới nhất.
-                    3. Mã chốt đơn bắt buộc: [CHOT_DON: Tên | Sản phẩm | SĐT | Địa chỉ]`
+                    DANH SÁCH KHO: ${khoHang}
+
+                    QUY TẮC:
+                    1. Xưng hô: "Dạ", "Shop em", "Chị". 
+                    2. TƯ VẤN ẢNH: Nếu sản phẩm có LinkAnh, hãy gửi kèm dưới dạng: [IMG]link_anh[/IMG].
+                    3. SIZE: Luôn ưu tiên cân nặng khách vừa nhắc tới.
+                    4. CHỐT ĐƠN: Bắt buộc dùng mã: [CHOT_DON: Tên Khách | Tên SP & Size | SĐT | Địa chỉ]`
                 },
                 ...userHistory
             ]
-        }, { 
-            headers: { 
-                "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-                "Content-Type": "application/json"
-            } 
-        });
+        }, { headers: { "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}` } });
 
-        if (response.data && response.data.choices && response.data.choices[0]) {
-            return response.data.choices[0].message.content;
-        } else {
-            throw new Error("Phản hồi từ AI không đúng định dạng");
-        }
-
+        return response.data.choices[0].message.content;
     } catch (error) {
-        // Log lỗi này ra để Đạt xem trên Render Dashboard -> Logs
-        console.error("LỖI GỌI OPENROUTER:", error.response ? error.response.data : error.message);
-        throw error; // Đẩy lỗi ra ngoài để app.js bắt được
+        console.error("Lỗi AI:", error.message);
+        return "Dạ hệ thống bên em hơi chậm tí, chị nhắn lại giúp em mẫu chị ưng nha!";
     }
 }
-
 module.exports = { getAIReply };
