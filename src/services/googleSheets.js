@@ -112,5 +112,4 @@ async function saveOrder(parts) {
 
 
 
-
-module.exports = { getAppData, saveOrder };
+module.exports = { getAppData, saveOrder, addProduct };
