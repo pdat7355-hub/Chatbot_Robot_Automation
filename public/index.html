@@ -66,27 +66,35 @@
         localStorage.setItem('hk_userId', userId);
 
         function addMsg(text, sender) {
-            if(!text) return;
-            const div = document.createElement('div');
-            div.className = 'msg ' + sender;
-            
-            // 1. Chuyển đổi ký tự xuống dòng
-            let content = text.replace(/\n/g, '<br>');
-        
-            // 2. Tự động biến link ảnh thô thành thẻ <img>
-            content = content.replace(/(https?:\/\/[^\s]+(?:\.jpg|\.png|\.webp))/g, (url) => {
-                return `<img src="${url}" class="chat-img" style="width:100%; border-radius:8px; margin-top:5px;">`;
-            });
-        
-            // 3. Biến mã [IMG] thành thẻ <img> (đề phòng AI dùng mã này)
-            content = content.replace(/\[IMG\](.*?)\[\/IMG\]/g, (match, url) => {
-                return `<img src="${url.trim()}" class="chat-img" style="width:100%; border-radius:8px; margin-top:5px;">`;
-            });
-        
-            div.innerHTML = content;
-            messageContainer.appendChild(div);
-            messageContainer.scrollTop = messageContainer.scrollHeight;
-        }
+    if (!text) return;
+    const div = document.createElement('div');
+    div.className = 'msg ' + sender;
+
+    // Bước 1: Xử lý xuống dòng trước
+    let content = text.replace(/\n/g, '<br>');
+
+    // Bước 2: Xử lý mã [IMG]url[/IMG] - Ưu tiên xử lý cái này trước
+    content = content.replace(/\[IMG\]\s*(.*?)\s*\[\/IMG\]/gi, (match, url) => {
+        return `<img src="${url.trim()}" style="width:100%; max-width:250px; border-radius:10px; margin-top:8px; display:block; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">`;
+    });
+
+    // Bước 3: Nếu AI gửi link thô (không nằm trong thẻ IMG) thì mới biến thành ảnh
+    // Chỉ bắt các link kết thúc bằng đuôi ảnh phổ biến
+    const imgRegex = /(https?:\/\/[^\s<]+(?:\.jpg|\.png|\.webp|\.jpeg))/gi;
+    content = content.replace(imgRegex, (url) => {
+        // Kiểm tra xem link này đã nằm trong thẻ <img> ở bước 2 chưa để tránh lặp
+        if (content.includes(`src="${url}"`)) return url; 
+        return `<img src="${url}" style="width:100%; max-width:250px; border-radius:10px; margin-top:8px; display:block;">`;
+    });
+
+    div.innerHTML = content;
+    messageContainer.appendChild(div);
+    
+    // Cuộn xuống tin nhắn mới nhất
+    setTimeout(() => {
+        messageContainer.scrollTop = messageContainer.scrollHeight;
+    }, 100);
+}
 
         async function sendMessage() {
             const text = input.value.trim();
