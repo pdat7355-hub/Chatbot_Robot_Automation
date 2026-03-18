@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hương Kid - Quản Lý Kho</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background: #f0f2f5; }
+        .card { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        input, textarea { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
+        button { width: 100%; padding: 15px; background: #0084ff; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        #status { margin-top: 15px; text-align: center; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>📦 Nhập Kho Hương Kid</h2>
+        <input type="password" id="pass" placeholder="Mật khẩu quản lý">
+        <textarea id="data" rows="4" placeholder="Tên SP | Giá | Size | Link Ảnh"></textarea>
+        <p style="font-size: 12px; color: #666;">Ví dụ: Áo thun cá mập | 120k | Size 1-5 | https://link-anh.jpg</p>
+        <button onclick="submitKho()">XÁC NHẬN NHẬP KHO</button>
+        <div id="status"></div>
+    </div>
+
+    <script>
+        async function submitKho() {
+            const pass = document.getElementById('pass').value;
+            const data = document.getElementById('data').value;
+            const status = document.getElementById('status');
+
+            if(!pass || !data) return alert("Điền đủ thông tin Đạt ơi!");
+
+            status.innerHTML = "⏳ Đang ghi vào Sheets...";
+            
+            const res = await fetch('/api/admin/nhap-kho', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password: pass, data: data })
+            });
+            const result = await res.json();
+            
+            status.innerHTML = result.message;
+            status.style.color = result.success ? "green" : "red";
+            if(result.success) document.getElementById('data').value = "";
+        }
+    </script>
+</body>
+</html>
