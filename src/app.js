@@ -34,6 +34,41 @@ app.get('/', (req, res) => {
 
 // --- PHẦN POST /CHAT GIỮ NGUYÊN ---
 let allUsersHistory = {};
+
+// Route dành riêng cho Đạt nhập hàng
+app.post('/api/admin/nhap-kho', async (req, res) => {
+    const { password, data } = req.body;
+    
+    // Đạt đổi mật khẩu này theo ý mình nhé
+    if (password !== "huongkid2026") { 
+        return res.status(403).json({ success: false, message: "Sai mật khẩu quản lý!" });
+    }
+
+    try {
+        // Tách dữ liệu bằng dấu gạch đứng |
+        const parts = data.split("|").map(p => p.trim());
+        
+        if (parts.length < 3) {
+            return res.json({ success: false, message: "Nhập thiếu rồi Đạt ơi! (Tên | Giá | Size | Link Ảnh)" });
+        }
+
+        const { addProduct } = require('./services/googleSheets');
+        const result = await addProduct(parts);
+
+        if (result) {
+            res.json({ success: true, message: `✅ Đã thêm: ${parts[0]} vào kho!` });
+        } else {
+            res.json({ success: false, message: "Lỗi ghi vào Sheets!" });
+        }
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+
+
+
+// Route chat bot
 app.post('/chat', async (req, res) => {
     const { message, userId } = req.body;
     try {
