@@ -35,31 +35,25 @@ module.exports = { getAIReply };
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-async function parseInventoryData(rawText) {
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-    
-    const prompt = `
-        Bạn là trợ lý nhập kho chuyên nghiệp cho shop quần áo trẻ em "Hương Kid".
-        Nhiệm vụ: Trích xuất thông tin sản phẩm từ câu văn sau: "${rawText}"
-        Trả về định dạng JSON duy nhất với các trường:
-        {
-          "name": "Tên sản phẩm (viết hoa chữ cái đầu)",
-          "price": "Giá (chỉ để số, ví dụ 120000)",
-          "size": "Dải size (ví dụ: 1-5 hoặc S, M, L)",
-          "imageUrl": "Link ảnh nếu có, nếu không có để trống"
-        }
-        Lưu ý: Nếu giá là "120k" hãy chuyển thành "120000". Chỉ trả về JSON, không giải thích.
-    `;
+async function parseInventory(userInput) {
+    const prompt = `Bạn là chuyên gia bóc tách dữ liệu kho hàng cho shop Hương Kid. 
+    Hãy chuyển nội dung sau thành JSON: "${userInput}"
+    Chỉ trả về DUY NHẤT mã JSON theo mẫu này: 
+    {"name": "tên", "price": "giá", "size": "kích cỡ", "imageUrl": "link"}
+    KHÔNG ĐƯỢC CÓ CHỮ GIẢI THÍCH NÀO KHÁC.`;
 
-    try {
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const text = response.text().replace(/```json|```/g, "").trim();
-        return JSON.parse(text);
-    } catch (error) {
-        console.error("AI Parse Error:", error);
-        throw new Error("AI không hiểu được nội dung này, Đạt kiểm tra lại nhé!");
+    const result = await model.generateContent(prompt);
+    const text = result.response.text().trim();
+    
+    // Mẹo: Dùng RegEx để lọc lấy đúng phần nằm trong dấu { } nếu AI lỡ nói thừa
+    const jsonMatch = text.match(/\{.*\}/s);
+    if (jsonMatch) {
+        return JSON.parse(jsonMatch[0]); // Trả về Object
     }
+    throw new Error("Không tìm thấy JSON");
 }
+
+
+
 
 module.exports = { parseInventoryData };
