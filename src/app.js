@@ -36,32 +36,38 @@ app.get('/', (req, res) => {
 let allUsersHistory = {};
 
 // Route dành riêng cho Đạt nhập hàng
+const aiService = require('./services/aiService');
+const googleSheets = require('./services/googleSheets');
+
 app.post('/api/admin/nhap-kho', async (req, res) => {
     const { password, data } = req.body;
-    
-    // Đạt đổi mật khẩu này theo ý mình nhé
-    if (password !== "huongkid2026") { 
-        return res.status(403).json({ success: false, message: "Sai mật khẩu quản lý!" });
+
+    // Bảo mật cơ bản
+    if (password !== process.env.ADMIN_PASSWORD) {
+        return res.json({ success: false, message: "❌ Sai mật khẩu rồi Đạt ơi!" });
     }
 
     try {
-        // Tách dữ liệu bằng dấu gạch đứng |
-        const parts = data.split("|").map(p => p.trim());
-        
-        if (parts.length < 3) {
-            return res.json({ success: false, message: "Nhập thiếu rồi Đạt ơi! (Tên | Giá | Size | Link Ảnh)" });
-        }
+        // Bước 1: Gọi AI để chuẩn hóa dữ liệu
+        const product = await aiService.parseInventoryData(data);
 
-        const { addProduct } = require('./services/googleSheets');
-        const result = await addProduct(parts);
+        // Bước 2: Ghi vào Google Sheets
+        // Thứ tự cột: Ngày | Tên SP | Giá | Size | Link Ảnh
+        await googleSheets.appendRow('SẢN PHẨM', [
+            new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }),
+            product.name,
+            product.price,
+            product.size,
+            product.imageUrl
+        ]);
 
-        if (result) {
-            res.json({ success: true, message: `✅ Đã thêm: ${parts[0]} vào kho!` });
-        } else {
-            res.json({ success: false, message: "Lỗi ghi vào Sheets!" });
-        }
-    } catch (err) {
-        res.status(500).json({ success: false, message: err.message });
+        res.json({ 
+            success: true, 
+            message: `✅ AI đã nhập: ${product.name} | ${product.price}đ | Size: ${product.size}` 
+        });
+
+    } catch (error) {
+        res.json({ success: false, message: "❌ Lỗi: " + error.message });
     }
 });
 
