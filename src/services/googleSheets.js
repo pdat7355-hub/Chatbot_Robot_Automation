@@ -66,21 +66,19 @@ async function getAppData() {
 }
 
 // Hàm lưu nhập kho
-async function addProduct(parts) {
+async function addProduct(dataObj) {
     try {
         const docProd = new GoogleSpreadsheet(process.env.ID_FILE_PRODUCT, auth);
         await docProd.loadInfo();
         const sheet = docProd.sheetsByIndex[0];
 
+        // Dùng đúng các Key mà AI trả về
         await sheet.addRow({
-            'Tên': parts[0],
-            'Giá': parts[1],
-            'Size': parts[2],
-            'Ảnh': parts[3] || ''
+            'Tên': dataObj.name,
+            'Giá': dataObj.price,
+            'Size': dataObj.size,
+            'Ảnh': dataObj.imageUrl || ''
         });
-
-        // Xóa cache để AI cập nhật hàng mới ngay lập tức
-        cachedData.khoHang = ""; 
         return true;
     } catch (err) {
         console.error(err);
