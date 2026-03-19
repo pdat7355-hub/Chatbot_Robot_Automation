@@ -1,6 +1,6 @@
 # Chatbot_Robot_Automation
 đường dẫn
-https://huong-kid-bot.onrender.com/admin.html
+https://chatbot-robot-automation.onrender.com/admin.html
 
 
 "Chào Gemini, tiếp tục dự án Hương Kid nhé. Đây là hồ sơ dự án của mình: 
