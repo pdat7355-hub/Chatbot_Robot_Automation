@@ -32,7 +32,7 @@ module.exports = { getAIReply };
 
 
 // phần ai nhập kho
-const axios = require('axios'); // Đạt nhớ kiểm tra xem đã có axios trong package.json chưa nhé
+
 
 async function parseInventoryData(userInput) {
     try {
