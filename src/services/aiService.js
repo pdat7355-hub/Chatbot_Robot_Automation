@@ -35,7 +35,7 @@ module.exports = { getAIReply };
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-async function parseInventory(userInput) {
+async function parseInventoryData(userInput) {
     const prompt = `Bạn là chuyên gia bóc tách dữ liệu kho hàng cho shop Hương Kid. 
     Hãy chuyển nội dung sau thành JSON: "${userInput}"
     Chỉ trả về DUY NHẤT mã JSON theo mẫu này: 
@@ -56,4 +56,4 @@ async function parseInventory(userInput) {
 
 
 
-module.exports = { parseInventory };
+module.exports = { parseInventoryData };
