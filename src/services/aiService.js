@@ -56,4 +56,4 @@ async function parseInventory(userInput) {
 
 
 
-module.exports = { parseInventoryData };
+module.exports = { parseInventory };
