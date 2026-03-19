@@ -1,22 +1,17 @@
 const express = require('express');
 const path = require('path');
-const fs = require('fs'); // Thêm thư viện để kiểm tra file tồn tại
-const { getAppData, saveOrder } = require('./services/googleSheets');
-const { getAIReply } = require('./services/aiService');
+const fs = require('fs');
+const { getAppData, saveOrder, addProduct } = require('./services/googleSheets');
+const { getAIReply, parseInventoryData } = require('./services/aiService');
 
 const app = express();
 app.use(express.json());
 
-// --- LOGIC TỰ ĐỘNG DÒ ĐƯỜNG DẪN ---
+// --- LOGIC TỰ ĐỘNG DÒ ĐƯỜNG DẪN GIAO DIỆN ---
 let publicPath = path.join(process.cwd(), 'public');
-
-// Nếu ở trên Render mà process.cwd() trỏ vào /src, ta phải nhảy ra ngoài
 if (!fs.existsSync(path.join(publicPath, 'index.html'))) {
     publicPath = path.join(process.cwd(), '..', 'public');
 }
-
-console.log("👉 Bot đang tìm giao diện tại:", publicPath);
-
 app.use(express.static(publicPath));
 
 app.get('/', (req, res) => {
@@ -24,57 +19,60 @@ app.get('/', (req, res) => {
     if (fs.existsSync(indexPath)) {
         res.sendFile(indexPath);
     } else {
-        res.status(404).send(`
-            <h2>Shop Hương Kid: Không tìm thấy file giao diện!</h2>
-            <p>Bot đã tìm ở: ${indexPath}</p>
-            <p>Đạt hãy kiểm tra lại cấu thư mục trên GitHub nhé.</p>
-        `);
+        res.status(404).send(`<h2>Shop Hương Kid: Không tìm thấy giao diện!</h2>`);
     }
 });
 
-// --- PHẦN POST /CHAT GIỮ NGUYÊN ---
+// --- LƯU TRỮ LỊCH SỬ CHAT ---
 let allUsersHistory = {};
 
-// Route dành riêng cho Đạt nhập hàng
-const aiService = require('./services/aiService');
-const googleSheets = require('./services/googleSheets');
-
+// --- ROUTE 1: NHẬP KHO (DÀNH CHO ĐẠT) ---
 app.post('/api/admin/nhap-kho', async (req, res) => {
     const { password, data } = req.body;
 
-    // Bảo mật cơ bản
     if (password !== process.env.ADMIN_PASSWORD) {
         return res.json({ success: false, message: "❌ Sai mật khẩu rồi Đạt ơi!" });
     }
 
     try {
-        // Bước 1: Gọi AI để chuẩn hóa dữ liệu
-        const product = await aiService.parseInventoryData(data);
+        // Bước 1: Gọi AI bóc tách và kiểm tra đủ 5 trường
+        const product = await parseInventoryData(data);
 
-        // Bước 2: Ghi vào Google Sheets
-        // Thứ tự cột: Ngày | Tên SP | Giá | Size | Link Ảnh
-        await googleSheets.appendRow('SẢN PHẨM', [
-            new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }),
-            product.name,
-            product.price,
-            product.size,
-            product.imageUrl
-        ]);
+        // Bước 2: Kiểm tra nếu AI báo thiếu thông tin
+        if (!product || product.status === "error") {
+            const missing = product ? product.missing : "thông tin";
+            return res.json({ 
+                success: false, 
+                message: `⚠️ AI báo thiếu ${missing.toUpperCase()}. Đạt nhập đủ: Tên, Giá, Size, Mô tả và Ảnh nhé!` 
+            });
+        }
 
-        res.json({ 
-            success: true, 
-            message: `✅ AI đã nhập: ${product.name} | ${product.price}đ | Size: ${product.size}` 
+        // Bước 3: Ghi vào Google Sheets (Sử dụng hàm addProduct đã thống nhất)
+        // Truyền đúng Object có 5 trường cho googleSheets.js
+        const isSaved = await addProduct({
+            ten: product.ten,
+            gia: product.gia,
+            size: product.size,
+            mota: product.mota,
+            anh: product.anh
         });
 
+        if (isSaved) {
+            res.json({ 
+                success: true, 
+                message: `✅ ĐÃ NHẬP KHO: ${product.ten} | ${product.gia}đ | Size: ${product.size}` 
+            });
+        } else {
+            res.json({ success: false, message: "❌ Lỗi: Không thể ghi vào file Sheets." });
+        }
+
     } catch (error) {
-        res.json({ success: false, message: "❌ Lỗi: " + error.message });
+        console.error("Lỗi nhập kho:", error);
+        res.json({ success: false, message: "❌ Lỗi hệ thống: " + error.message });
     }
 });
 
-
-
-
-// Route chat bot
+// --- ROUTE 2: CHATBOT BÁN HÀNG ---
 app.post('/chat', async (req, res) => {
     const { message, userId } = req.body;
     try {
@@ -86,28 +84,29 @@ app.post('/chat', async (req, res) => {
 
         let aiReply = await getAIReply(userHistory, shopProfile, khoHang);
 
-        // Xử lý chốt đơn ngầm
+        // Xử lý chốt đơn tự động khi AI trả về mã [CHOT_DON:...]
         if (aiReply.includes("[CHOT_DON:")) {
             try {
                 const orderRaw = aiReply.split("[CHOT_DON:")[1].split("]")[0];
                 const parts = orderRaw.split("|").map(p => p.trim());
                 
-                // Gọi hàm lưu vào Google Sheets (Đảm bảo đã import saveOrder)
-                await saveOrder(parts); 
+                await saveOrder(parts); // Lưu đơn vào sheet ĐƠN HÀNG
 
-                // Thay thế mã chốt đơn bằng câu thông báo thân thiện
-                aiReply = aiReply.replace(/\[CHOT_DON:.*?\]/g, "✅ Shop Hương Kid đã lưu đơn thành công cho chị rồi ạ!");
+                aiReply = aiReply.replace(/\[CHOT_DON:.*?\]/g, "✅ Shop Hương Kid đã lưu đơn thành công cho chị rồi ạ! Shop sẽ liên hệ chị sớm nhé.");
             } catch (err) {
                 console.error("Lỗi ghi đơn:", err);
             }
         }
 
         userHistory.push({ role: "assistant", content: aiReply });
-        if (userHistory.length > 15) userHistory.splice(0, 2);
+        
+        // Giới hạn lịch sử chat để tiết kiệm dung lượng API
+        if (userHistory.length > 10) userHistory.splice(0, 2);
 
         res.json({ reply: aiReply });
     } catch (error) {
-        res.status(500).json({ reply: "Dạ em bận tí, chị nhắn lại nha!" });
+        console.error("Lỗi Chatbot:", error);
+        res.status(500).json({ reply: "Dạ hệ thống bên em hơi chậm, chị chờ em tí nha!" });
     }
 });
 
