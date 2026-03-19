@@ -66,23 +66,27 @@ async function getAppData() {
 }
 
 // Hàm lưu nhập kho
-async function addProduct(aiResult) {
+async function addProduct(product) {
     try {
         const docProd = new GoogleSpreadsheet(process.env.ID_FILE_PRODUCT, auth);
         await docProd.loadInfo();
         const sheet = docProd.sheetsByIndex[0];
 
-        // Đạt phải dùng đúng tên cột tiếng Việt có dấu như trong file Drive
+        // LƯU Ý CỰC KỲ QUAN TRỌNG: 
+        // Vế bên trái (ví dụ 'Tên') phải khớp 100% với chữ ở dòng 1 trong file Excel của Đạt.
+        // Vế bên phải (ví dụ product.ten) phải khớp với key mà AI trả về trong aiService.js.
+
         await sheet.addRow({
-            'Tên': aiResult.name,
-            'Giá': aiResult.price,
-            'Size': aiResult.size,
-            'Mô tả': aiResult.description || 'Hàng mới về cho bé', // Thêm cột này để không bị trống
-            'Ảnh': aiResult.imageUrl || ''
+            'Tên': product.ten || product.name || 'Chưa rõ tên',
+            'Giá': product.gia || product.price || '0',
+            'Size': product.size || 'Đủ size',
+            'Mô tả': product.mota || product.description || 'Hàng mới về cho bé',
+            'Ảnh': product.anh || product.imageUrl || ''
         });
 
-        // Xóa bộ nhớ đệm để Chatbot thấy hàng mới ngay
-        cachedData.khoHang = ""; 
+        // Xóa cache để chatbot cập nhật hàng mới
+        if (typeof cachedData !== 'undefined') cachedData.khoHang = ""; 
+        
         console.log("✅ Đã ghi vào Sheets thành công!");
         return true;
     } catch (err) {
