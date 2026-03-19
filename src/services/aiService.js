@@ -32,43 +32,44 @@ module.exports = { getAIReply };
 
 
 // phần ai nhập kho
-const { GoogleGenerativeAI } = require("@google/generative-ai");
-
-// 1. Khai báo model ở ngoài cùng để tất cả các hàm đều dùng được
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+const axios = require('axios'); // Đạt nhớ kiểm tra xem đã có axios trong package.json chưa nhé
 
 async function parseInventoryData(userInput) {
     try {
-        // Kiểm tra nếu chưa có API Key
-        if (!process.env.GEMINI_API_KEY) {
-            throw new Error("Chưa cấu hình GEMINI_API_KEY trên Render");
-        }
+        const response = await axios.post("https://openrouter.ai/api/v1/chat/completions", {
+            model: "google/gemini-2.0-flash-001", // Model Đạt muốn dùng
+            messages: [
+                {
+                    role: "system",
+                    content: "Bạn là chuyên gia bóc tách dữ liệu cho shop Hương Kid. Chỉ trả về DUY NHẤT mã JSON sạch, không giải thích."
+                },
+                {
+                    role: "user",
+                    content: `Chuyển nội dung này thành JSON: "${userInput}". Định dạng: {"name": "tên", "price": "giá", "size": "kích cỡ", "imageUrl": "link"}`
+                }
+            ]
+        }, {
+            headers: {
+                "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+                "Content-Type": "application/json"
+            }
+        });
 
-        const prompt = `Bạn là chuyên gia bóc tách dữ liệu cho shop Hương Kid. 
-        Hãy chuyển nội dung sau thành JSON: "${userInput}"
-        Chỉ trả về DUY NHẤT mã JSON theo mẫu:
-        {"name": "tên sản phẩm", "price": "giá", "size": "kích cỡ", "imageUrl": "link"}
-        Không giải thích gì thêm.`;
-
-        // 2. Gọi model ở đây (bây giờ nó đã được định nghĩa ở trên rồi)
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        let text = response.text().trim();
-
-        // Trích xuất JSON sạch
+        const text = response.data.choices[0].message.content.trim();
+        
+        // Trích xuất JSON (đề phòng AI nói thừa)
         const jsonMatch = text.match(/\{.*\}/s);
         if (jsonMatch) {
             return JSON.parse(jsonMatch[0]);
         }
         
-        console.error("AI trả về sai định dạng:", text);
+        console.error("❌ OpenRouter trả về sai định dạng:", text);
         return null;
+
     } catch (error) {
-        console.error("❌ Lỗi tại aiService:", error.message);
+        console.error("❌ Lỗi OpenRouter:", error.response ? error.response.data : error.message);
         return null;
     }
 }
 
-// 3. Xuất hàm ra với đúng tên Đạt muốn
 module.exports = { parseInventoryData };
