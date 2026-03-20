@@ -3,48 +3,144 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hương Kid - Quản Lý Kho</title>
+    <title>Hương Kid - Quản Lý Kho Thông Minh</title>
     <style>
         body { font-family: sans-serif; padding: 20px; background: #f0f2f5; }
-        .card { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-        input, textarea { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
-        button { width: 100%; padding: 15px; background: #0084ff; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
-        #status { margin-top: 15px; text-align: center; font-weight: bold; }
+        .card { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); max-width: 500px; margin: auto; }
+        input, textarea { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
+        button { width: 100%; padding: 15px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        .btn-analyze { background: #0084ff; color: white; margin-bottom: 10px; }
+        .btn-save { background: #28a745; color: white; }
+        #status { margin-top: 15px; text-align: center; font-weight: bold; font-size: 14px; }
+        .preview-box { display: none; margin-top: 20px; padding-top: 15px; border-top: 2px dashed #eee; }
+        label { font-size: 13px; color: #555; font-weight: bold; }
+        .missing-alert { color: #d9534f; background: #fdf7f7; padding: 10px; border-radius: 8px; font-size: 13px; margin-bottom: 10px; border-left: 4px solid #d9534f; }
     </style>
 </head>
 <body>
     <div class="card">
         <h2>📦 Nhập Kho Hương Kid</h2>
+        
         <input type="password" id="pass" placeholder="Mật khẩu quản lý">
-        <textarea id="data" rows="4" 
-            placeholder="Nhập tự nhiên. VD: Vừa về 50 bộ thun lạnh giá 85k size từ 1 tới 10, ảnh http://anh.jpg"></textarea>
-        <p style="font-size: 12px; color: #666;">
-            💡 Mẹo: Bạn có thể nhập thoải mái, AI sẽ tự tách thông tin cho bạn!
-        </p>
-        <button onclick="submitKho()">XÁC NHẬN NHẬP KHO</button>
+        <textarea id="rawData" rows="4" placeholder="Ví dụ: Áo thun 120k size 1-5, vải cotton mịn, ảnh http://anh.jpg"></textarea>
+        
+        <button class="btn-analyze" id="btnAnalyze" onclick="analyzeData()">1. PHÂN TÍCH THÔNG TIN</button>
+        
+        <div id="previewArea" class="preview-box">
+            <div id="aiMessage"></div>
+            
+            <label>Tên sản phẩm:</label>
+            <input type="text" id="res_ten" placeholder="Tên sản phẩm">
+            
+            <label>Giá bán (số):</label>
+            <input type="number" id="res_gia" placeholder="Giá">
+            
+            <label>Size hiện có:</label>
+            <input type="text" id="res_size" placeholder="Ví dụ: 1-5 hoặc 10-20kg">
+            
+            <label>Mô tả / Chất liệu:</label>
+            <input type="text" id="res_mota" placeholder="Mô tả cho chatbot">
+            
+            <label>Link ảnh:</label>
+            <input type="text" id="res_anh" placeholder="http://...">
+            
+            <button class="btn-save" onclick="confirmSave()">2. XÁC NHẬN LƯU VÀO SHEETS</button>
+        </div>
+
         <div id="status"></div>
     </div>
 
     <script>
-        async function submitKho() {
+        // Hàm gọi AI để bóc tách dữ liệu
+        async function analyzeData() {
             const pass = document.getElementById('pass').value;
-            const data = document.getElementById('data').value;
+            const text = document.getElementById('rawData').value;
             const status = document.getElementById('status');
+            const preview = document.getElementById('previewArea');
 
-            if(!pass || !data) return alert("Điền đủ thông tin Đạt ơi!");
+            if(!pass || !text) return alert("Điền đủ mật khẩu và nội dung Đạt ơi!");
+
+            status.innerHTML = "⏳ AI đang phân tích dữ liệu...";
+            status.style.color = "blue";
+
+            try {
+                const res = await fetch('/api/admin/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: pass, data: text })
+                });
+                const result = await res.json();
+
+                if (!result.success) {
+                    status.innerHTML = result.message;
+                    status.style.color = "red";
+                    return;
+                }
+
+                // Hiển thị vùng chỉnh sửa
+                preview.style.display = "block";
+                status.innerHTML = "✅ Đã bóc tách xong! Đạt kiểm tra lại rồi bấm Lưu nhé.";
+                
+                // Điền dữ liệu vào các ô (dù thiếu vẫn điền cái đã có)
+                const d = result.data;
+                document.getElementById('res_ten').value = d.ten || "";
+                document.getElementById('res_gia').value = d.gia || "";
+                document.getElementById('res_size').value = d.size || "";
+                document.getElementById('res_mota').value = d.mota || "";
+                document.getElementById('res_anh').value = d.anh || "";
+
+                // Hiển thị lời nhắc từ AI nếu thiếu thông tin
+                const aiMsgBox = document.getElementById('aiMessage');
+                if (result.status === "incomplete") {
+                    aiMsgBox.innerHTML = `<div class="missing-alert">💡 ${result.message}</div>`;
+                } else {
+                    aiMsgBox.innerHTML = "";
+                }
+
+            } catch (err) {
+                status.innerHTML = "❌ Lỗi kết nối server!";
+            }
+        }
+
+        // Hàm lưu chính thức vào Sheets
+        async function confirmSave() {
+            const status = document.getElementById('status');
+            const pass = document.getElementById('pass').value;
+
+            // Thu thập dữ liệu cuối cùng từ các ô Input (Đạt có thể đã sửa tay)
+            const finalData = {
+                ten: document.getElementById('res_ten').value,
+                gia: document.getElementById('res_gia').value,
+                size: document.getElementById('res_size').value,
+                mota: document.getElementById('res_mota').value,
+                anh: document.getElementById('res_anh').value
+            };
+
+            if(!finalData.ten || !finalData.gia) return alert("Tên và Giá là bắt buộc Đạt nhé!");
 
             status.innerHTML = "⏳ Đang ghi vào Sheets...";
-            
-            const res = await fetch('/api/admin/nhap-kho', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ password: pass, data: data })
-            });
-            const result = await res.json();
-            
-            status.innerHTML = result.message;
-            status.style.color = result.success ? "green" : "red";
-            if(result.success) document.getElementById('data').value = "";
+
+            try {
+                const res = await fetch('/api/admin/save-to-sheets', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: pass, product: finalData })
+                });
+                const result = await res.json();
+
+                status.innerHTML = result.message;
+                status.style.color = result.success ? "green" : "red";
+
+                if(result.success) {
+                    // Reset form sau khi lưu thành công
+                    setTimeout(() => {
+                        document.getElementById('rawData').value = "";
+                        document.getElementById('previewArea').style.display = "none";
+                    }, 2000);
+                }
+            } catch (err) {
+                status.innerHTML = "❌ Lỗi khi lưu dữ liệu!";
+            }
         }
     </script>
 </body>
