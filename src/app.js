@@ -1,74 +1,57 @@
 const express = require('express');
-const path = require('path');
-const fs = require('fs');
-const { getAppData, saveOrder, addProduct } = require('./services/googleSheets');
-const { getAIReply, parseInventoryData } = require('./services/aiService');
-
 const app = express();
+const { parseInventoryData, getAIReply } = require('./src/services/aiService');
+const { saveToSheets, getAppData } = require('./src/services/googleSheets');
+
 app.use(express.json());
+app.use(express.static('public')); // Để chạy admin.html từ thư mục public
 
-// --- LOGIC TỰ ĐỘNG DÒ ĐƯỜNG DẪN GIAO DIỆN ---
-let publicPath = path.join(process.cwd(), 'public');
-if (!fs.existsSync(path.join(publicPath, 'index.html'))) {
-    publicPath = path.join(process.cwd(), '..', 'public');
-}
-app.use(express.static(publicPath));
+// --- LUỒNG ADMIN: NHẬP KHO 2 BƯỚC ---
 
-app.get('/', (req, res) => {
-    const indexPath = path.join(publicPath, 'index.html');
-    if (fs.existsSync(indexPath)) {
-        res.sendFile(indexPath);
-    } else {
-        res.status(404).send(`<h2>Shop Hương Kid: Không tìm thấy giao diện!</h2>`);
-    }
-});
-
-// --- LƯU TRỮ LỊCH SỬ CHAT ---
-let allUsersHistory = {};
-
-// --- ROUTE 1: NHẬP KHO (DÀNH CHO ĐẠT) ---
-app.post('/api/admin/nhap-kho', async (req, res) => {
+// Bước 1: Phân tích dữ liệu (Chưa lưu)
+app.post('/api/admin/analyze', async (req, res) => {
     const { password, data } = req.body;
 
+    // Kiểm tra mật khẩu (Lấy từ biến môi trường trên Render)
     if (password !== process.env.ADMIN_PASSWORD) {
         return res.json({ success: false, message: "❌ Sai mật khẩu rồi Đạt ơi!" });
     }
 
     try {
-        // Bước 1: Gọi AI bóc tách và kiểm tra đủ 5 trường
-        const product = await parseInventoryData(data);
-
-        // Bước 2: Kiểm tra nếu AI báo thiếu thông tin
-        if (!product || product.status === "error") {
-            const missing = product ? product.missing : "thông tin";
-            return res.json({ 
-                success: false, 
-                message: `⚠️ AI báo thiếu ${missing.toUpperCase()}. Đạt nhập đủ: Tên, Giá, Size, Mô tả và Ảnh nhé!` 
-            });
+        const result = await parseInventoryData(data);
+        
+        if (!result) {
+            return res.json({ success: false, message: "❌ AI không hiểu đoạn này, Đạt nhập rõ tên và giá nhé!" });
         }
 
-        // Bước 3: Ghi vào Google Sheets (Sử dụng hàm addProduct đã thống nhất)
-        // Truyền đúng Object có 5 trường cho googleSheets.js
-        const isSaved = await addProduct({
-            ten: product.ten,
-            gia: product.gia,
-            size: product.size,
-            mota: product.mota,
-            anh: product.anh
+        // Trả về kết quả bóc tách cho giao diện Admin
+        res.json({ 
+            success: true, 
+            status: result.status, // "success" hoặc "incomplete"
+            data: result.status === "success" ? result.data : result.extracted,
+            message: result.message || "" // Lời nhắc nếu thiếu thông tin
         });
-
-        if (isSaved) {
-            res.json({ 
-                success: true, 
-                message: `✅ ĐÃ NHẬP KHO: ${product.ten} | ${product.gia}đ | Size: ${product.size}` 
-            });
-        } else {
-            res.json({ success: false, message: "❌ Lỗi: Không thể ghi vào file Sheets." });
-        }
-
     } catch (error) {
-        console.error("Lỗi nhập kho:", error);
-        res.json({ success: false, message: "❌ Lỗi hệ thống: " + error.message });
+        res.json({ success: false, message: "❌ Lỗi khi gọi AI phân tích." });
+    }
+});
+
+// Bước 2: Lưu chính thức vào Google Sheets
+app.post('/api/admin/save-to-sheets', async (req, res) => {
+    const { password, product } = req.body;
+
+    if (password !== process.env.ADMIN_PASSWORD) {
+        return res.json({ success: false, message: "❌ Sai mật khẩu!" });
+    }
+
+    try {
+        // Gọi hàm lưu vào Google Sheets (Sản phẩm gồm: ten, gia, size, mota, anh)
+        await saveToSheets(product);
+        
+        res.json({ success: true, message: "✅ Đã lưu vào Sheets thành công!" });
+    } catch (error) {
+        console.error("Lỗi Sheets:", error);
+        res.json({ success: false, message: "❌ Lỗi khi ghi vào Google Sheets." });
     }
 });
 
