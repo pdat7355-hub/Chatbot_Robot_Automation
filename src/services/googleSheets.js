@@ -7,102 +7,68 @@ const auth = new JWT({
     scopes: ['https://www.googleapis.com/auth/spreadsheets'],
 });
 
-// Biến lưu trữ bộ nhớ đệm (Cache)
-let cachedData = {
-    shopProfile: "",
-    khoHang: "",
-    lastUpdate: 0
-};
-
-// Cấu hình thời gian làm mới (ví dụ: 10 phút = 600.000 ms)
+let cachedData = { shopProfile: "", khoHang: "", lastUpdate: 0 };
 const CACHE_TIMEOUT = 10 * 60 * 1000;
 
+// HÀM LẤY DỮ LIỆU (Giữ nguyên logic của Đạt)
 async function getAppData() {
     const now = Date.now();
-
-    // Nếu đã có dữ liệu trong RAM và chưa quá 10 phút thì trả về luôn, không gọi Google nữa
     if (cachedData.khoHang && (now - cachedData.lastUpdate < CACHE_TIMEOUT)) {
-        console.log("⚡ Lấy dữ liệu từ Bộ nhớ đệm (Fast Cache)");
-        return { 
-            shopProfile: cachedData.shopProfile, 
-            khoHang: cachedData.khoHang 
-        };
+        return { shopProfile: cachedData.shopProfile, khoHang: cachedData.khoHang };
     }
-
-    console.log("🔄 Đang cập nhật dữ liệu mới từ Google Sheets...");
     try {
-        // 1. Lấy thông tin Shop
         const docInfo = new GoogleSpreadsheet(process.env.ID_FILE_INFO, auth);
         await docInfo.loadInfo();
         const infoRows = await docInfo.sheetsByIndex[0].getRows();
         const shopProfile = infoRows.map(r => `${r.get('Hạng mục')}: ${r.get('Nội dung')}`).join('\n');
 
-        // 2. Lấy danh sách Kho hàng (Xử lý được hàng ngàn dòng)
         const docProd = new GoogleSpreadsheet(process.env.ID_FILE_PRODUCT, auth);
         await docProd.loadInfo();
         const prodRows = await docProd.sheetsByIndex[0].getRows();
-        
-        // Dùng mảng để xử lý nhanh hơn
-        const khoHang = prodRows.map(r => 
-            `- SP: ${r.get('Tên')} | Giá: ${r.get('Giá')} | Size: ${r.get('Size')} | LinkAnh: ${r.get('Ảnh') || ''}`
-        ).join('\n');
+        const khoHang = prodRows.map(r => `- SP: ${r.get('Tên')} | Giá: ${r.get('Giá')} | Size: ${r.get('Size')} | LinkAnh: ${r.get('Ảnh') || ''}`).join('\n');
 
-        // Lưu vào bộ nhớ đệm
-        cachedData = {
-            shopProfile,
-            khoHang,
-            lastUpdate: now
-        };
-
+        cachedData = { shopProfile, khoHang, lastUpdate: now };
         return { shopProfile, khoHang };
     } catch (err) {
-        console.error("❌ Lỗi đọc Sheets:", err.message);
-        // Nếu lỗi mà trong cache vẫn có dữ liệu cũ thì dùng tạm dữ liệu cũ
-        return { 
-            shopProfile: cachedData.shopProfile || "", 
-            khoHang: cachedData.khoHang || "" 
-        };
+        return { shopProfile: cachedData.shopProfile || "", khoHang: cachedData.khoHang || "" };
     }
 }
 
-// Hàm lưu nhập kho
-async function addProduct(product) {
+/**
+ * HÀM LƯU NHẬP KHO (Đã đổi tên thành saveToSheets để khớp với app.js)
+ */
+async function saveToSheets(product) {
     try {
+        // ID_FILE_PRODUCT là ID của file chứa danh sách sản phẩm
         const docProd = new GoogleSpreadsheet(process.env.ID_FILE_PRODUCT, auth);
         await docProd.loadInfo();
         const sheet = docProd.sheetsByIndex[0];
 
-        // LƯU Ý CỰC KỲ QUAN TRỌNG: 
-        // Vế bên trái (ví dụ 'Tên') phải khớp 100% với chữ ở dòng 1 trong file Excel của Đạt.
-        // Vế bên phải (ví dụ product.ten) phải khớp với key mà AI trả về trong aiService.js.
-
+        // LƯU Ý: Chữ 'Tên', 'Giá', 'Size'... bên trái PHẢI khớp 100% với dòng 1 của Sheet
         await sheet.addRow({
-            'Tên': product.ten || product.name || 'Chưa rõ tên',
-            'Giá': product.gia || product.price || '0',
+            'Tên': product.ten || 'Chưa rõ tên',
+            'Giá': product.gia || '0',
             'Size': product.size || 'Đủ size',
-            'Mô tả': product.mota || product.description || 'Hàng mới về cho bé',
-            'Ảnh': product.anh || product.imageUrl || ''
+            'Mô tả': product.mota || 'Hàng mới về cho bé',
+            'Ảnh': product.anh || ''
         });
 
-        // Xóa cache để chatbot cập nhật hàng mới
-        if (typeof cachedData !== 'undefined') cachedData.khoHang = ""; 
-        
-        console.log("✅ Đã ghi vào Sheets thành công!");
+        // Xóa cache để chatbot cập nhật ngay hàng mới vừa nhập
+        cachedData.khoHang = ""; 
+        console.log("✅ Ghi Sheets thành công!");
         return true;
     } catch (err) {
-        console.error("❌ Lỗi ghi Sheets:", err.message);
-        return false;
+        console.error("❌ Lỗi ghi Sheets chi tiết:", err.message);
+        throw err; // Ném lỗi ra để app.js bắt được
     }
 }
 
-
-// Hàm lưu đơn hàng (Cái này không cache vì phải ghi thực tế)
+// Hàm lưu đơn hàng
 async function saveOrder(parts) {
     try {
         const docOrder = new GoogleSpreadsheet(process.env.ID_FILE_ORDER, auth);
         await docOrder.loadInfo();
         const orderSheet = docOrder.sheetsByIndex[0];
-
         await orderSheet.addRow({
             'Thời gian': new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }),
             'Tên khách': parts[0],
@@ -110,13 +76,10 @@ async function saveOrder(parts) {
             'Số điện thoại': parts[2],
             'Địa chỉ': parts[3]
         });
-        console.log("✅ Đã lưu đơn hàng mới!");
     } catch (err) {
         console.error("❌ Lỗi lưu đơn:", err.message);
     }
 }
 
-
-
-
-module.exports = { getAppData, saveOrder, addProduct };
+// Xuất khẩu đúng tên hàm app.js cần
+module.exports = { getAppData, saveOrder, saveToSheets };
