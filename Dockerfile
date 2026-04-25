@@ -1,19 +1,14 @@
 FROM ollama/ollama
 
-# Cài đặt curl
-RUN apt-get update && apt-get install -y curl
+# Không cần curl tải thủ công nữa, chúng ta dùng lệnh pull của Ollama
+# Lệnh này sẽ tự động tải con Llama 3.2 bản 1 tỷ tham số (rất nhẹ, ~1.3GB nhưng nén lại chỉ còn vài trăm MB)
+# Hoặc nếu Đạt vẫn muốn con SmolLM, ta sẽ dùng lệnh pull smollm:135m
 
-# Tạo thư mục
-RUN mkdir -p /root/.ollama/models/blobs/
-
-# Tải mô hình (Dùng link download trực tiếp để tránh file 29 bytes)
-RUN curl -L "https://huggingface.co/bartowski/SmolLM-135M-Instruct-add-basics-GGUF/resolve/main/SmolLM-135M-Instruct-add-basics-Q8_0.gguf?download=true" -o /root/.ollama/models/blobs/model.gguf
-
-# Tạo Modelfile
-RUN echo "FROM /root/.ollama/models/blobs/model.gguf" > Modelfile
-
-# Mở cổng
 EXPOSE 11434
 
-# Lệnh khởi chạy
-ENTRYPOINT ["/bin/sh", "-c", "ollama serve & sleep 5 && ollama create smollm-dat -f Modelfile && tail -f /dev/null"]
+# Lệnh khởi chạy: 
+# 1. Chạy server Ollama ngầm
+# 2. Đợi 5 giây để server sẵn sàng
+# 3. Tải mô hình smollm trực tiếp từ thư viện Ollama (chuẩn 100%)
+# 4. Giữ server sống
+ENTRYPOINT ["/bin/sh", "-c", "ollama serve & sleep 5 && ollama pull smollm:135m && tail -f /dev/null"]
