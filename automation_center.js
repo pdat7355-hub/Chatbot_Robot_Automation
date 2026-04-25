@@ -3,11 +3,11 @@ const http = require("http");
 const url = require("url");
 
 // 1. CẤU HÌNH API KEY (Giữ nguyên chìa khóa của Đạt)
-const API_KEY = "AIzaSyDk4T2-1TaJTRnxk3QAXqD9fSrVTFRZkWY";
+const API_KEY = "AIzaSyBFiQznTctoGAdpvxXmKnbyLnky9peee2E";
 const genAI = new GoogleGenerativeAI(API_KEY);
 
 // 2. KHỞI TẠO MODEL (Dùng tên model chuẩn để tránh lỗi 404)
-const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
 // 3. HÀM XỬ LÝ AI GIAO TIẾP
 async function phanHoiKhachHang(userMessage) {
