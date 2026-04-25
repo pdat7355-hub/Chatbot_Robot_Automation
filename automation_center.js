@@ -1,32 +1,32 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const http = require("http"); // Thêm cái này để tạo server ảo giữ Render không tắt
 
-// API Key Đạt vừa lấy
 const API_KEY = "AIzaSyDk4T2-1TaJTRnxk3QAXqD9fSrVTFRZkWY";
 const genAI = new GoogleGenerativeAI(API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
 async function phanHoiKhachHang(userMessage) {
-    console.log(`🚀 Đang kết nối nhân viên Gemini cho shop Hương Kid...`);
-
-    const promptSystem = `
-    Bạn là nhân viên bán hàng tại shop "Hương Kid", địa chỉ 210 Trần Cao Vân, Đà Nẵng.
-    Chuyên quần áo bé trai. Phong cách: Niềm nở, lễ phép, luôn gọi khách là 'dạ', xưng 'shop'.
-    Nhiệm vụ: Tư vấn quần áo và trả lời thắc mắc của khách bằng tiếng Việt.
-    `;
-
+    const promptSystem = `Bạn là nhân viên shop Hương Kid, 210 Trần Cao Vân, Đà Nẵng. Lễ phép, dạ thưa.`;
     try {
-        const result = await model.generateContent(`${promptSystem}\nKhách hỏi: ${userMessage}\nNhân viên trả lời:`);
+        const result = await model.generateContent(`${promptSystem}\nKhách: ${userMessage}\nNhân viên:`);
         const response = await result.response;
-        const text = response.text();
-
-        console.log("\n----------------------------");
-        console.log("💬 Khách hỏi: " + userMessage);
-        console.log("🤖 Trợ lý Hương Kid: " + text.trim());
-        console.log("----------------------------");
+        console.log("🤖 Bot trả lời:", response.text());
+        return response.text();
     } catch (error) {
         console.error("❌ Lỗi API:", error.message);
+        return "Dạ shop đang bận tí, Đạt đợi shop tí nhé!";
     }
 }
 
-// Chạy thử
-phanHoiKhachHang("Shop ơi có mẫu áo thun nào mới cho bé 5 tuổi không?");
+// Tạo một server đơn giản để Render không tắt ứng dụng (Health Check)
+const server = http.createServer(async (req, res) => {
+    res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" });
+    res.end("Hương Kid Bot đang hoạt động!");
+});
+
+const PORT = process.env.PORT || 10000;
+server.listen(PORT, () => {
+    console.log(`🚀 Server đang chạy trên cổng ${PORT}`);
+    // Chạy thử một câu khi vừa khởi động
+    phanHoiKhachHang("Shop có áo thun không?");
+});
