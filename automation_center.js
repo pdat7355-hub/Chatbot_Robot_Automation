@@ -3,7 +3,7 @@ const http = require("http");
 const url = require("url");
 
 // 1. CẤU HÌNH API KEY (Giữ nguyên chìa khóa của Đạt)
-const API_KEY = "AIzaSyBFiQznTctoGAdpvxXmKnbyLnky9peee2E";
+const API_KEY = process.env.GEMINI_API_KEY;
 const genAI = new GoogleGenerativeAI(API_KEY);
 
 // 2. KHỞI TẠO MODEL (Dùng tên model chuẩn để tránh lỗi 404)
