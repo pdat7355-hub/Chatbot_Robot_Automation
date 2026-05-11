@@ -1,34 +1,111 @@
-{
-  "name": "huong-kid-bot-v2",
-  "version": "2.0.0",
-  "description": "Hệ thống Chatbot bán hàng cho shop Hương Kid - Closed-Loop Automation",
-  "main": "server.js",
-  "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js"
-  },
-  "keywords": [
-    "chatbot",
-    "nodejs",
-    "google-sheets",
-    "automation"
-  ],
-  "author": "Phan Quốc Đạt",
-  "license": "ISC",
-  "dependencies": {
-    "axios": "^1.6.0",
-    "express": "^4.18.2",
-    "google-spreadsheet": "^4.1.1",
-    "google-auth-library": "^9.0.0",
-    "googleapis": "^126.0.0", 
-    "dotenv": "^16.3.1",
-    "body-parser": "^1.20.2",
-    "cors": "^2.8.5"
-  },
-  "devDependencies": {
-    "nodemon": "^3.0.1"
-  },
-  "engines": {
-    "node": ">=18.0.0"
-  }
+==> Downloading cache...
+==> Cloning from https://github.com/pdat7355-hub/Chatbot_Robot_Automation
+==> Checking out commit 591a1d35ef1f8be2c3a4c91c213e26770fe0de1a in branch main
+==> Downloaded 3.8GB in 17s. Extraction took 4s.
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 141B done
+#1 DONE 0.0s
+#2 [auth] library/node:pull render-prod/docker-mirror-repository/library/node:pull token for us-west1-docker.pkg.dev
+#2 DONE 0.0s
+#3 [internal] load metadata for docker.io/library/node:20-slim
+#3 DONE 0.5s
+#4 [internal] load .dockerignore
+#4 transferring context: 2B done
+#4 DONE 0.0s
+#5 importing cache manifest from local:10075527436480322878
+#5 inferred cache manifest type: application/vnd.oci.image.manifest.v1+json done
+#5 DONE 0.0s
+#6 [1/5] FROM docker.io/library/node:20-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0
+#6 resolve docker.io/library/node:20-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0 0.0s done
+#6 DONE 0.0s
+#7 [internal] load build context
+#7 transferring context: 103.59kB done
+#7 DONE 0.0s
+#8 [2/5] WORKDIR /app
+#8 CACHED
+#9 [3/5] COPY package*.json ./
+#9 CACHED
+#10 [4/5] RUN npm install
+#10 sha256:ff86ea2e5edce334d19a34fbc65d1a511aa1fc823dba1110422f991aa56b44d4 28.24MB / 28.24MB 0.2s
+#10 sha256:ff86ea2e5edce334d19a34fbc65d1a511aa1fc823dba1110422f991aa56b44d4 28.24MB / 28.24MB 0.2s done
+#10 extracting sha256:ff86ea2e5edce334d19a34fbc65d1a511aa1fc823dba1110422f991aa56b44d4
+#10 extracting sha256:ff86ea2e5edce334d19a34fbc65d1a511aa1fc823dba1110422f991aa56b44d4 0.7s done
+#10 sha256:e54aec64c365815cd7b91e718f00ac6e625562b1de09036b38614621b42c7582 3.31kB / 3.31kB done
+#10 extracting sha256:e54aec64c365815cd7b91e718f00ac6e625562b1de09036b38614621b42c7582
+#10 extracting sha256:e54aec64c365815cd7b91e718f00ac6e625562b1de09036b38614621b42c7582 0.8s done
+#10 sha256:804d4d68057cbb26cbcde9a735148ebc6589911bad32cf9dbddb5b0ba878bf1f 39.85MB / 41.42MB 0.2s
+#10 sha256:804d4d68057cbb26cbcde9a735148ebc6589911bad32cf9dbddb5b0ba878bf1f 41.42MB / 41.42MB 0.3s done
+#10 extracting sha256:804d4d68057cbb26cbcde9a735148ebc6589911bad32cf9dbddb5b0ba878bf1f
+#10 extracting sha256:804d4d68057cbb26cbcde9a735148ebc6589911bad32cf9dbddb5b0ba878bf1f 2.7s done
+#10 sha256:64cfb949317c9824fd081d55c59a7225bfe1f650c6395ba42d7ed0ccf51993d2 1.71MB / 1.71MB 0.0s done
+#10 extracting sha256:64cfb949317c9824fd081d55c59a7225bfe1f650c6395ba42d7ed0ccf51993d2 0.1s done
+#10 sha256:3c02fd806613748139b8b8a14a69ae3518a1b0e863c57c35aada3b92ed87fb31 447B / 447B done
+#10 extracting sha256:3c02fd806613748139b8b8a14a69ae3518a1b0e863c57c35aada3b92ed87fb31 0.0s done
+#10 sha256:03be3f90b02b7e3f13488472c7d95da6d5f154520687871d173d95be799d8a3e 92B / 92B done
+#10 extracting sha256:03be3f90b02b7e3f13488472c7d95da6d5f154520687871d173d95be799d8a3e 0.0s done
+#10 sha256:506f3a5877474b39bb8309605b5097a257f0ee5ced558514c5b78dfb04c897a6 531B / 531B done
+#10 extracting sha256:506f3a5877474b39bb8309605b5097a257f0ee5ced558514c5b78dfb04c897a6 0.0s done
+#10 sha256:570f804091ff78c38c0f3c6836bbb5d1602ffb94e1520c37be121ee57d6167b2 29.69MB / 29.69MB 0.2s
+#10 sha256:570f804091ff78c38c0f3c6836bbb5d1602ffb94e1520c37be121ee57d6167b2 29.69MB / 29.69MB 0.2s done
+#10 extracting sha256:570f804091ff78c38c0f3c6836bbb5d1602ffb94e1520c37be121ee57d6167b2
+#10 extracting sha256:570f804091ff78c38c0f3c6836bbb5d1602ffb94e1520c37be121ee57d6167b2 1.6s done
+#10 CACHED
+#11 [5/5] COPY . .
+#11 DONE 0.0s
+#12 exporting to docker image format
+#12 exporting layers 0.0s done
+#12 exporting manifest sha256:76d68831a0887e964ac062ed12782a6b39b131b397216499f48822af2e7ef859 done
+#12 exporting config sha256:98bfbd241dbd2482a3dc8c4e2068d620332f81a2e4508cc6ea1c55a628ce453d done
+#12 DONE 0.4s
+#13 exporting cache to client directory
+#13 writing cache image manifest sha256:cb708ba31a66144a69cf5880066ea6758f3f7dc71d96790ad2d5b0ebc2b4731e done
+#13 DONE 0.0s
+Pushing image to registry...
+Upload succeeded
+==> Deploying...
+==> Setting WEB_CONCURRENCY=1 by default, based on available CPUs in the instance
+node:internal/modules/cjs/loader:1210
+  throw err;
+  ^
+Error: Cannot find module '@google/generative-ai'
+Require stack:
+- /app/processors/logicHandler/aiService.js
+- /app/server.js
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1207:15)
+    at Module._load (node:internal/modules/cjs/loader:1038:27)
+    at Module.require (node:internal/modules/cjs/loader:1289:19)
+    at require (node:internal/modules/helpers:182:18)
+    at Object.<anonymous> (/app/processors/logicHandler/aiService.js:1:32)
+    at Module._compile (node:internal/modules/cjs/loader:1521:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1623:10)
+    at Module.load (node:internal/modules/cjs/loader:1266:32)
+    at Module._load (node:internal/modules/cjs/loader:1091:12)
+    at Module.require (node:internal/modules/cjs/loader:1289:19) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [ '/app/processors/logicHandler/aiService.js', '/app/server.js' ]
 }
+Node.js v20.20.2
+==> Exited with status 1
+==> Common ways to troubleshoot your deploy: https://render.com/docs/troubleshooting-deploys
+node:internal/modules/cjs/loader:1210
+  throw err;
+  ^
+Error: Cannot find module '@google/generative-ai'
+Require stack:
+- /app/processors/logicHandler/aiService.js
+- /app/server.js
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1207:15)
+    at Module._load (node:internal/modules/cjs/loader:1038:27)
+    at Module.require (node:internal/modules/cjs/loader:1289:19)
+    at require (node:internal/modules/helpers:182:18)
+    at Object.<anonymous> (/app/processors/logicHandler/aiService.js:1:32)
+    at Module._compile (node:internal/modules/cjs/loader:1521:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1623:10)
+    at Module.load (node:internal/modules/cjs/loader:1266:32)
+    at Module._load (node:internal/modules/cjs/loader:1091:12)
+    at Module.require (node:internal/modules/cjs/loader:1289:19) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [ '/app/processors/logicHandler/aiService.js', '/app/server.js' ]
+}
+Node.js v20.20.2
+Need better ways to work wit
