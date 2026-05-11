@@ -1,14 +1,35 @@
-/project-root
-│── /src
-│   ├── /services
-│   │   ├── googleSheets.js  <-- Chỉ xử lý Đọc/Ghi Sheets
-│   │   ├── facebook.js      <-- Chỉ xử lý gửi tin nhắn FB
-│   │   └── aiService.js     <-- Chỉ xử lý gọi Gemini/OpenRouter
-│   ├── /routes
-│   │   └── webhook.js       <-- Nơi nhận dữ liệu từ FB/Telegram
-│   └── app.js               <-- File chính để khởi chạy Server
-│── /public
-│   └── index.html 
-│   └── admin.html
+HUONG_KID_BOT
+
+├── server.js                               # File chạy chính (Web Server)
+├── core/
+│   	├── analyzer.js                 # Bóc tách Mã SP, SĐT, Cân nặng
+│   	└── sessionManager.js    # Quản lý trí nhớ khách hàng
+├── processors/
+│   	├── analyzer.js                 # Bóc tách Mã SP, SĐT, Cân nặng
+│   	├── cartFormatter.js
+│   	├── commandTraps.js
+│   	├── recognizer.js              #  Nhận diện định danh khách hàng 
+│   	└── logicHandler              # Bộ não tư vấn & chốt đơn
+│          	└── index.js          # File điều phối (Entry Point)
+│          	└── consult.js       # Chuyên xử lý Tư vấn (Mã hàng, Kho, Size) 
+│          	└── conversion.js # Chuyên xử lý Chốt đơn (SĐT, Địa chỉ, Đơn hàng)
+│          	└── fallback.js      # Chuyên xử lý Giao tiếp ngoài lề (Sheet Giao Tiep)
+│          	└── retain.js          # Chuyên xử lý Giao tiếp chào hỏi
+│          	└── recognizer.js  # Chuyên xử lý tài khoản khách hàng
+│          	└── aiService.js     # Cầu nối gọi các API trí tuệ nhân tạo 
+│          	└── logger.js          # tách chổi json để lấy nội dung 
+│          	└── remedy
+│          	└── cart
+├── services/
+│   	└── assetMapper.js
+│   	└── googleSheets.js          # Kết nối Excel (Đọc/Ghi)
+│   	└── orderServices.js          #  Chứa logic tính toán tiền nong, phí ship 
+├── utils/
+│   	└── helpers.js                    # Hàm phụ trợ (Map size, khử dấu)
+│   	└──systemChecker.js        # Hàm kiểm tra chatbot hoạt động như thế nào
+└── public/
+    	└── index.html                   # Giao diện Mobile
+    	└── style.css                      # Tạo ra giao diện trên Mobile 
+    	└── chat.js                         # Giao diện tin nhắn
 │── package.json
 └── index.js                 <-- File mồi để Render gọi
