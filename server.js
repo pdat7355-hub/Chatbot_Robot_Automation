@@ -108,6 +108,37 @@ async function processChatLogicWithTrace(userId, message) {
     }
 }
 
+
+
+//"Module Định Dạng Đầu Ra Cho Facebook Messenger".
+function formatFacebookMessage(text) {
+    // Tìm tất cả các cụm từ nằm trong dấu []
+    const buttonRegex = /\[(.*?)\]/g;
+    const matches = [...text.matchAll(buttonRegex)];
+
+    if (matches.length > 0) {
+        // Tách phần text chính (xóa bỏ các phần [nút] trong chuỗi hiển thị)
+        let cleanText = text.replace(buttonRegex, '').trim();
+        
+        // Tạo mảng quick_replies từ các kết quả tìm được
+        const quickReplies = matches.map(match => ({
+            content_type: "text",
+            title: match[1].substring(0, 20), // Facebook giới hạn 20 ký tự tiêu đề nút
+            payload: `PICKED_${match[1].toUpperCase().replace(/\s+/g, '_')}`
+        }));
+
+        return {
+            text: cleanText || "Mẹ chọn ở dưới nhen:",
+            quick_replies: quickReplies.slice(0, 13) // Facebook tối đa 13 nút
+        };
+    }
+
+    // Nếu không có [], gửi text bình thường
+    return { text: text };
+}
+
+
+
 // --- API ENDPOINTS ---
 
 app.post('/chat', async (req, res) => {
@@ -149,12 +180,19 @@ app.post('/webhook', async (req, res) => {
 
 async function callSendAPI(sender_psid, responseText) {
     try {
+        // Gọi hàm format để kiểm tra xem có nút bấm hay không
+        const formattedMessage = formatFacebookMessage(responseText);
+
         await axios.post(`https://graph.facebook.com/v19.0/me/messages?access_token=${process.env.FB_PAGE_ACCESS_TOKEN}`, {
             recipient: { id: sender_psid },
-            message: { text: responseText }
+            message: formattedMessage // Sử dụng kết quả đã format
         });
-    } catch (err) { console.error("❌ Lỗi gửi FB:", err.response?.data || err.message); }
+        console.log(`✅ Đã gửi phản hồi cho ${sender_psid}`);
+    } catch (err) { 
+        console.error("❌ Lỗi gửi FB:", err.response?.data || err.message); 
+    }
 }
+
 
 // --- KHỞI CHẠY ---
 const PORT = process.env.PORT || 3000;
