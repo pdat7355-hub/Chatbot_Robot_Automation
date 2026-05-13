@@ -11,13 +11,16 @@ const axios = require('axios');
 const sessionManager = require('./core/sessionManager');
 const analyzer = require('./processors/analyzer');
 const googleSheets = require('./services/googleSheets');
+const facebookService = require('./services/facebookService');
 const logicHandler = require('./processors/logicHandler/index'); 
 const { identify } = require('./processors/recognizer');
 const { handleTraps } = require('./processors/commandTraps');
 const systemChecker = require('./utils/systemChecker');
 
+
 // Import AI Service
 const aiService = require('./processors/logicHandler/aiService'); 
+
 
 const app = express();
 app.use(express.json());
@@ -110,55 +113,14 @@ async function processChatLogicWithTrace(userId, message) {
 
 
 
-//"Module Định Dạng Đầu Ra Cho Facebook Messenger".
-function formatFacebookMessage(text) {
-    // Tìm tất cả các cụm từ nằm trong dấu []
-    const buttonRegex = /\[(.*?)\]/g;
-    const matches = [...text.matchAll(buttonRegex)];
-
-    if (matches.length > 0) {
-        // Tách phần text chính (xóa bỏ các phần [nút] trong chuỗi hiển thị)
-        let cleanText = text.replace(buttonRegex, '').trim();
-        
-        // Tạo mảng quick_replies từ các kết quả tìm được
-        const quickReplies = matches.map(match => ({
-            content_type: "text",
-            title: match[1].substring(0, 20), // Facebook giới hạn 20 ký tự tiêu đề nút
-            payload: `PICKED_${match[1].toUpperCase().replace(/\s+/g, '_')}`
-        }));
-
-        return {
-            text: cleanText || "Mẹ chọn ở dưới nhen:",
-            quick_replies: quickReplies.slice(0, 13) // Facebook tối đa 13 nút
-        };
-    }
-
-    // Nếu không có [], gửi text bình thường
-    return { text: text };
-}
-
-
-function extractImageUrl(text) {
-    // Tìm link ảnh trong thẻ src="..." hoặc link trực tiếp
-    const urlRegex = /https?:\/\/[^\s"<>]+(?:\.jpg|\.jpeg|\.png|\.gif|thumbnail\?[^\s"<>]+)/i;
-    const match = text.match(urlRegex);
-    return match ? match[0] : null;
-}
 
 
 // --- API ENDPOINTS ---
 
-app.post('/chat', async (req, res) => {
-    const { userId, message } = req.body;
-    const result = await processChatLogicWithTrace(userId || "WEB_TEST", message);
-    res.json(result); 
-});
-
 app.post('/webhook', async (req, res) => {
     let body = req.body;
     if (body.object === 'page') {
-        // Trả lời FB ngay lập tức để tránh timeout (chống lặp tin nhắn)
-        res.status(200).send('EVENT_RECEIVED');
+        res.status(200).send('EVENT_RECEIVED'); // Phản hồi FB ngay để tránh gửi lặp
 
         for (let entry of body.entry) {
             if (entry.messaging) {
@@ -170,13 +132,17 @@ app.post('/webhook', async (req, res) => {
                 if (message_id && processedMessages.has(message_id)) continue;
                 if (message_id) {
                     processedMessages.add(message_id);
-                    // Xóa bộ nhớ đệm sau 10 phút để tránh tốn RAM
                     setTimeout(() => processedMessages.delete(message_id), 600000);
                 }
 
+                // CHỖ NÀY LÀ QUAN TRỌNG NHẤT:
                 if (event.message && event.message.text) {
+                    // 1. Gửi tin nhắn vào "Bộ não" để xử lý logic (Excel/AI)
                     const result = await processChatLogicWithTrace(sender_id, event.message.text);
-                    await callSendAPI(sender_id, result.reply);
+
+                    // 2. Gửi kết quả sang "Chi chi" (Facebook Service) để định dạng ảnh/nút và hiển thị
+                    // Xóa bỏ hàm callSendAPI cũ, dùng facebookService mới tách ra
+                    await facebookService.sendResponse(sender_id, result.reply);
                 }
             }
         }
@@ -185,36 +151,25 @@ app.post('/webhook', async (req, res) => {
     }
 });
 
-async function callSendAPI(sender_psid, responseText) {
+// =========================================================
+// 🌐 ENDPOINT CHO GIAO DIỆN WEB (TESTING)
+// =========================================================
+app.post('/chat', async (req, res) => {
     try {
-        const imageUrl = extractImageUrl(responseText);
+        const { userId, message } = req.body;
         
-        // 1. Nếu có link ảnh, gửi ảnh trước
-        if (imageUrl) {
-            await axios.post(`https://graph.facebook.com/v19.0/me/messages?access_token=${process.env.FB_PAGE_ACCESS_TOKEN}`, {
-                recipient: { id: sender_psid },
-                message: {
-                    attachment: {
-                        type: "image",
-                        payload: { url: imageUrl, is_reusable: true }
-                    }
-                }
-            });
-        }
-
-        // 2. Làm sạch text (xóa thẻ <img> thừa) và gửi nội dung kèm nút bấm
-        const cleanText = responseText.replace(/<img[^>]*>/g, "").trim();
-        const formattedMessage = formatFacebookMessage(cleanText);
-
-        await axios.post(`https://graph.facebook.com/v19.0/me/messages?access_token=${process.env.FB_PAGE_ACCESS_TOKEN}`, {
-            recipient: { id: sender_psid },
-            message: formattedMessage
-        });
-
-    } catch (err) {
-        console.error("❌ Lỗi gửi Media FB:", err.response?.data || err.message);
+        // 1. Gửi vào bộ não xử lý logic
+        const result = await processChatLogicWithTrace(userId || "WEB_TEST", message);
+        
+        // 2. Trả kết quả về trực tiếp cho giao diện Web hiển thị
+        // Lưu ý: Web dùng res.json, còn Facebook dùng facebookService.sendResponse
+        res.json(result); 
+        
+    } catch (error) {
+        console.error("❌ Lỗi API Chat:", error);
+        res.status(500).json({ reply: "Dạ em lỗi xíu, Mẹ nhắn lại nhen!" });
     }
-}
+}); 
 
 
 // --- KHỞI CHẠY ---
