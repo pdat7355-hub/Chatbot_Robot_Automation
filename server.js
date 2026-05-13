@@ -138,6 +138,13 @@ function formatFacebookMessage(text) {
 }
 
 
+function extractImageUrl(text) {
+    // Tìm link ảnh trong thẻ src="..." hoặc link trực tiếp
+    const urlRegex = /https?:\/\/[^\s"<>]+(?:\.jpg|\.jpeg|\.png|\.gif|thumbnail\?[^\s"<>]+)/i;
+    const match = text.match(urlRegex);
+    return match ? match[0] : null;
+}
+
 
 // --- API ENDPOINTS ---
 
@@ -180,16 +187,32 @@ app.post('/webhook', async (req, res) => {
 
 async function callSendAPI(sender_psid, responseText) {
     try {
-        // Gọi hàm format để kiểm tra xem có nút bấm hay không
-        const formattedMessage = formatFacebookMessage(responseText);
+        const imageUrl = extractImageUrl(responseText);
+        
+        // 1. Nếu có link ảnh, gửi ảnh trước
+        if (imageUrl) {
+            await axios.post(`https://graph.facebook.com/v19.0/me/messages?access_token=${process.env.FB_PAGE_ACCESS_TOKEN}`, {
+                recipient: { id: sender_psid },
+                message: {
+                    attachment: {
+                        type: "image",
+                        payload: { url: imageUrl, is_reusable: true }
+                    }
+                }
+            });
+        }
+
+        // 2. Làm sạch text (xóa thẻ <img> thừa) và gửi nội dung kèm nút bấm
+        const cleanText = responseText.replace(/<img[^>]*>/g, "").trim();
+        const formattedMessage = formatFacebookMessage(cleanText);
 
         await axios.post(`https://graph.facebook.com/v19.0/me/messages?access_token=${process.env.FB_PAGE_ACCESS_TOKEN}`, {
             recipient: { id: sender_psid },
-            message: formattedMessage // Sử dụng kết quả đã format
+            message: formattedMessage
         });
-        console.log(`✅ Đã gửi phản hồi cho ${sender_psid}`);
-    } catch (err) { 
-        console.error("❌ Lỗi gửi FB:", err.response?.data || err.message); 
+
+    } catch (err) {
+        console.error("❌ Lỗi gửi Media FB:", err.response?.data || err.message);
     }
 }
 
