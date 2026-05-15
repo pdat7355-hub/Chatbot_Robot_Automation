@@ -70,25 +70,11 @@ async function sendResponse(senderPsid, responseText) {
         const accessToken = process.env.FB_PAGE_ACCESS_TOKEN;
         const imageUrl = extractImageUrl(responseText);
         
-        // Bóc tách nút: [Nhãn|Lệnh]
-        const buttonRegex = /\[([^\]|]+)\|?([^\]]*)\]/g;
-        const matches = [...responseText.matchAll(buttonRegex)];
-
-        // Làm sạch văn bản: Xóa HTML và xóa các khối []
-        let cleanText = responseText
-            .replace(/<[^>]*>/g, "") 
-            .replace(/\[.*?\]/g, "")
-            .trim();
-
-        if (imageUrl && matches.length > 0) {
-            // --- CẤU TRÚC GENERIC TEMPLATE (ẢNH + TEXT + NÚT ĐI LIỀN) ---
-            const buttons = matches.slice(0, 3).map(match => ({
-                type: "postback",
-                title: match[1].trim().substring(0, 20),
-                payload: match[2] ? match[2].trim() : match[1].trim()
-            }));
-
-            await axios.post(`https://graph.facebook.com/v19.0/me/messages?access_token=${accessToken}`, {
+        // Nếu có ảnh, gửi ảnh kèm text/nút bằng Generic Template (để ảnh và nút đi liền một khối, trông sẽ ĐẸP và CÓ MÀU hơn)
+        if (imageUrl && responseText.includes("[")) {
+             const formatted = formatMessage(responseText, senderPsid);
+             // Gửi kiểu Generic để ảnh nằm trên, nút nằm dưới
+             await axios.post(`https://graph.facebook.com/v19.0/me/messages?access_token=${accessToken}`, {
                 recipient: { id: senderPsid },
                 message: {
                     attachment: {
@@ -96,21 +82,37 @@ async function sendResponse(senderPsid, responseText) {
                         payload: {
                             template_type: "generic",
                             elements: [{
-                                title: "Hương Kid - Mẫu bé trai", // Tiêu đề chính
+                                title: "Hương Kid tư vấn ạ!",
                                 image_url: imageUrl,
-                                subtitle: cleanText, // Thông tin mã, giá, size...
-                                buttons: buttons
+                                subtitle: formatted.text,
+                                buttons: (formatted.quick_replies || []).slice(0, 3).map(qr => ({
+                                    type: "postback",
+                                    title: qr.title,
+                                    payload: qr.payload
+                                }))
                             }]
                         }
                     }
                 }
             });
         } else {
-            // ... (Nếu không có ảnh hoặc nút thì gửi Text bình thường như cũ)
+            // Gửi tách rời nếu không có nút hoặc chỉ có text
+            if (imageUrl) {
+                await axios.post(`https://graph.facebook.com/v19.0/me/messages?access_token=${accessToken}`, {
+                    recipient: { id: senderPsid },
+                    message: { attachment: { type: "image", payload: { url: imageUrl } } }
+                });
+            }
+            const formatted = formatMessage(responseText, senderPsid);
+            await axios.post(`https://graph.facebook.com/v19.0/me/messages?access_token=${accessToken}`, {
+                recipient: { id: senderPsid },
+                message: formatted
+            });
         }
-        console.log(`✅ Đã gửi giao diện chuẩn cho: ${senderPsid}`);
+
+        console.log(`✅ [FB Service] Phản hồi thành công: ${senderPsid}`);
     } catch (err) {
-        console.error("❌ Lỗi hiển thị:", err.response?.data || err.message);
+        console.error("❌ [FB Service] Lỗi:", err.response?.data || err.message);
     }
 }
 
