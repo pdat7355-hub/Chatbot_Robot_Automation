@@ -30,7 +30,7 @@
     <button onclick="submitForm()">XÁC NHẬN GỬI</button>
 
     <script>
-        // 1. TÍCH HỢP MESSENGER EXTENSIONS SDK CHUẨN ĐỂ ĐÓNG WEBVIEW VỐN CÓ CỦA FACEBOOK
+        // 1. TÍCH HỢP MESSENGER EXTENSIONS SDK
         window.extAsyncInit = function() {
             console.log("Facebook Messenger Extension SDK đã sẵn sàng.");
         };
@@ -43,19 +43,33 @@
           fjs.parentNode.insertBefore(js, fjs);
         }(document, 'script', 'Messenger'));
 
+        // Hàm hỗ trợ đóng cửa sổ bằng mọi cách có thể
+        function forceCloseWebview() {
+            if (window.MessengerExtensions) {
+                MessengerExtensions.requestCloseBrowser(function success() {
+                    console.log("Đóng Webview thành công qua SDK");
+                }, function error(err) {
+                    console.error("Lỗi SDK, chuyển hướng sang phương thức dự phòng:", err);
+                    window.close();
+                    if(window.parent) window.parent.close();
+                });
+            } else {
+                window.close();
+                if(window.parent) window.parent.close();
+            }
+        }
+
         // 2. HÀM XỬ LÝ GỬI ĐƠN HÀNG
         async function submitForm() {
             const name = document.getElementById('name').value.trim();
             const phone = document.getElementById('phone').value.trim();
             const address = document.getElementById('address').value.trim();
 
-            // Kiểm tra xem khách đã nhập đủ thông tin chưa
             if (!name || !phone || !address) {
                 alert("Mẹ vui lòng điền đầy đủ Tên, SĐT và Địa chỉ để em lên đơn nhen! ❤️");
                 return;
             }
 
-            // Lấy userId (PSID) của khách từ đường dẫn URL
             const urlParams = new URLSearchParams(window.location.search);
             const userId = urlParams.get('userId');
 
@@ -64,13 +78,12 @@
                 return;
             }
 
-            // Đổi chữ trên nút để tránh khách bấm liên tục (Spam)
             const btn = document.querySelector('button');
-            btn.innerText = "⏳ ĐANG GỬI...";
+            btn.innerText = "⏳ ĐANG GỬI ĐƠN...";
             btn.disabled = true;
 
             try {
-                // 3. GỬI DỮ LIỆU VỀ SERVER NODE.JS CỦA BẠN
+                // 3. GỬI DỮ LIỆU VỀ SERVER NODE.JS
                 const response = await fetch('/api/submit-order', {
                     method: 'POST',
                     headers: {
@@ -82,17 +95,9 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    alert("🎉 Đơn hàng của Mẹ đã được hệ thống Hương Kid ghi nhận thành công ạ!");
-                    
-                    // 4. Đóng cửa sổ chat sau khi hoàn tất thành công
-                    if (window.MessengerExtensions) {
-                        MessengerExtensions.requestCloseBrowser(function success() {
-                            console.log("Đóng Webview thành công");
-                        }, function error(err) {
-                            console.error("Lỗi đóng webview:", err);
-                            // Nếu lỗi không tự đóng được (chưa whitelist), ứng dụng vẫn an toàn vì dữ liệu đã lưu
-                        });
-                    }
+                    // ĐÃ BỎ LỆNH ALERT() Ở ĐÂY ĐỂ TRÁNH BỊ KHỰN LẠI
+                    // 4. Gọi hàm đóng cửa sổ lập tức
+                    forceCloseWebview();
                 } else {
                     alert("⚠️ Có lỗi xảy ra: " + result.message);
                     btn.innerText = "XÁC NHẬN GỬI";
