@@ -190,10 +190,13 @@ app.post('/api/submit-order', async (req, res) => {
         console.log(`\n📦 [Form Webview] Có đơn chốt mới từ khách ${userId}:`);
         console.log(`   - Tên: ${name} | SĐT: ${phone} | ĐC: ${address}`);
 
+        // Xử lý chống lỗi #ERROR! trên Google Sheets khi số điện thoại có dấu "+" ở đầu
+        const safePhone = (phone.startsWith('+') || phone.startsWith('0')) ? `'${phone}` : phone;
+
         // 1. Lưu thông tin vừa điền trực tiếp vào file Excel/Google Sheets
         await googleSheets.syncCustomerToExcel(userId, {
             name: name,
-            phone: phone,
+            phone: safePhone, // Dùng biến đã được thêm dấu nháy đơn bảo vệ
             address: address,
             note: "Khách tự điền qua Form Webview"
         });
@@ -203,7 +206,7 @@ app.post('/api/submit-order', async (req, res) => {
         if (session) {
             session.entities = session.entities || {};
             session.entities.name = name;
-            session.entities.phone = phone;
+            session.entities.phone = phone; // Trong session lưu chuỗi gốc của khách cho sạch
             session.entities.address = address;
             sessionManager.update(userId, session);
         }
@@ -217,7 +220,7 @@ app.post('/api/submit-order', async (req, res) => {
                             
         await facebookService.sendResponse(userId, confirmText);
 
-        // Trả kết quả thành công về cho Trình duyệt để xử lý đóng Form
+        // Trả kết quả thành công về cho Trình duyệt để xử lý đóng Form lập tức
         return res.status(200).json({ success: true });
 
     } catch (error) {
