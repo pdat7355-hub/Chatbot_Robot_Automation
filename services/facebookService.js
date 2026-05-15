@@ -41,7 +41,7 @@ function formatMessage(text, psid) {
                         url: `${appUrl}/order-form.html?userId=${psid}`, 
                         title: "📝 ĐIỀN THÔNG TIN",
                         webview_height_ratio: "full",
-                        messenger_extensions: true 
+                        messenger_extensions: false 
                     }]
                 }
             }
