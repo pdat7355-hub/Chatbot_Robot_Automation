@@ -6,18 +6,28 @@ const axios = require('axios');
  */
 function cleanTextContent(text) {
     return (text || "")
-        .replace(/<[^>]*>/g, "") // Xóa sạch các thẻ <div>, <span>, <br>...
-        .replace(/\[\[.*?\]\]/g, "") // Xóa các tag đặc biệt dạng [[...]]
+        .replace(/<[^>]*>/g, "") // Xóa sạch các thẻ html
+        .replace(/\[\[.*?\]\]/g, "") // Xóa các tag đặc biệt
         .trim();
 }
 
 /**
- * Hàm lọc và chuyển đổi văn bản sang định dạng Facebook
+ * Hàm lọc và trích xuất TOÀN BỘ link ảnh có trong tin nhắn (Dùng cờ g)
+ */
+function extractAllImageUrls(text) {
+    if (!text) return [];
+    const urlRegex = /https?:\/\/[^\s"<>]+(?:\.jpg|\.jpeg|\.png|\.gif|\.webp|thumbnail\?[^\s"<>]+)/gi;
+    const matches = text.match(urlRegex);
+    return matches ? [...new Set(matches)] : []; // Loại bỏ trùng lặp nếu có
+}
+
+/**
+ * Hàm phân tích tin nhắn để dựng cấu trúc Facebook
  */
 function formatMessage(text, psid) {
     const cleanText = cleanTextContent(text);
 
-    // 1. XỬ LÝ FORM CHỐT ĐƠN (Giữ nguyên Webview của bạn)
+    // 1. XỬ LÝ FORM CHỐT ĐƠN WEBVIEW
     if (text.includes("[[SHOW_ORDER_FORM") || text.toUpperCase().includes("ACTION_CONFIRM")) {
         const appUrl = process.env.APP_URL || 'https://chatbot-robot-automation.onrender.com';
         return {
@@ -30,7 +40,7 @@ function formatMessage(text, psid) {
                         type: "web_url",
                         url: `${appUrl}/order-form.html?userId=${psid}`, 
                         title: "📝 ĐIỀN THÔNG TIN",
-                        webview_height_ratio: "full", // Mở toàn màn hình cho dễ nhìn
+                        webview_height_ratio: "full",
                         messenger_extensions: false 
                     }]
                 }
@@ -38,7 +48,7 @@ function formatMessage(text, psid) {
         };
     }
 
-    // 2. TỰ ĐỘNG BẮT SĐT (Nếu nội dung có chữ SĐT/Số điện thoại)
+    // 2. TỰ ĐỘNG BẮT SĐT
     if (cleanText.toLowerCase().includes("sđt") || cleanText.toLowerCase().includes("số điện thoại")) {
         return {
             text: cleanText,
@@ -46,13 +56,12 @@ function formatMessage(text, psid) {
         };
     }
 
-    // 3. XỬ LÝ NÚT BẤM [Nhãn|Lệnh]
+    // 3. XỬ LÝ NÚT BẤM [Nhãn|Lệnh] DẠNG QUICK REPLIES
     const buttonRegex = /\[([^\]|]+)\|?([^\]]*)\]/g;
     const matches = [...text.matchAll(buttonRegex)];
 
     if (matches.length > 0) {
         const isAskingAddress = cleanText.toLowerCase().includes("địa chỉ");
-        
         const quickReplies = matches.map(match => {
             const label = match[1].trim();
             const command = match[2] ? match[2].trim() : label;
@@ -63,7 +72,6 @@ function formatMessage(text, psid) {
             };
         });
 
-        // Nếu đang hỏi địa chỉ, chèn thêm 1 nút mẫu ở đầu
         if (isAskingAddress) {
             quickReplies.unshift({
                 content_type: "text",
@@ -78,48 +86,94 @@ function formatMessage(text, psid) {
         };
     }
 
-    // 4. TIN NHẮN VĂN BẢN THUẦN
     return { text: cleanText };
 }
 
 /**
- * Trích xuất Link ảnh (Hỗ trợ quét link ảnh sạch hơn)
- */
-function extractImageUrl(text) {
-    if (!text) return null;
-    const urlRegex = /https?:\/\/[^\s"<>]+密*(?:\.jpg|\.jpeg|\.png|\.gif|\.webp|thumbnail\?[^\s"<>]+)/i;
-    const match = text.match(urlRegex);
-    return match ? match[0] : null;
-}
-
-/**
- * Gửi phản hồi chính
+ * Hàm chính thực hiện gửi tin nhắn thông minh
  */
 async function sendResponse(senderPsid, responseText) {
     try {
         const accessToken = process.env.FB_PAGE_ACCESS_TOKEN;
-        const imageUrl = extractImageUrl(responseText);
+        const imageUrls = extractAllImageUrls(responseText);
+        
+        // --- TRƯỜNG HỢP NHIỀU ẢNH (Gửi dạng Album xoay vòng Carousel) ---
+        if (imageUrls.length >= 2) {
+            console.log(`📚 [FB Service] Phát hiện danh sách dữ liệu có ${imageUrls.length} ảnh. Tiến hành dựng Album Carousel...`);
+            
+            // Tìm toàn bộ cấu trúc khối sản phẩm để bóc tách nút bấm tương ứng với từng sản phẩm
+            // Giả định văn bản phân tách các sản phẩm dựa trên việc liệt kê Mã sản phẩm hoặc Nút bấm
+            const buttonRegex = /\[([^\]|]+)\|?([^\]]*)\]/g;
+            const allButtons = [...responseText.matchAll(buttonRegex)].map(m => ({
+                label: m[1].trim(),
+                command: m[2] ? m[2].trim() : m[1].trim()
+            }));
+
+            // Tạo các elements (Tối đa 10 ô theo quy định của Facebook)
+            const elements = imageUrls.slice(0, 10).map((url, index) => {
+                // Phân phối nút bấm tương ứng cho từng ô sản phẩm (nếu có)
+                const itemBtn = allButtons[index] ? [
+                    {
+                        type: "postback",
+                        title: allButtons[index].label.substring(0, 20),
+                        payload: allButtons[index].command
+                    }
+                ] : [];
+
+                return {
+                    title: `Mẫu Sản Phẩm ${index + 1}`,
+                    image_url: url,
+                    subtitle: `Mẹ nhấn nút bên dưới để chọn phân loại này nhen!`,
+                    buttons: itemBtn.length > 0 ? itemBtn : undefined
+                };
+            });
+
+            // Gửi tin nhắn cấu trúc dạng Generic Album xoay vòng
+            await axios.post(`https://graph.facebook.com/v19.0/me/messages?access_token=${accessToken}`, {
+                recipient: { id: senderPsid },
+                message: {
+                    attachment: {
+                        type: "template",
+                        payload: {
+                            template_type: "generic",
+                            elements: elements
+                        }
+                    }
+                }
+            });
+
+            // Gửi kèm dòng chữ hướng dẫn hoặc giỏ hàng tổng hợp ở cuối cho khách nắm thông tin
+            const cleanText = cleanTextContent(responseText).replace(/https?:\/\/[^\s"<>]+/gi, '').trim();
+            if (cleanText) {
+                await axios.post(`https://graph.facebook.com/v19.0/me/messages?access_token=${accessToken}`, {
+                    recipient: { id: senderPsid },
+                    message: { text: cleanText }
+                });
+            }
+            console.log(`✅ [FB Service] Đã gửi Album sản phẩm thành công tới: ${senderPsid}`);
+            return;
+        }
+
+        // --- TRƯỜNG HỢP THÔNG THƯỜNG (1 ẢNH HOẶC KHÔNG CÓ ẢNH) ---
         const formatted = formatMessage(responseText, senderPsid);
         
-        // BƯỚC 1: CỨ CÓ ẢNH LÀ GỬI RIÊNG TRƯỚC (Đảm bảo 100% hiển thị ảnh mẫu)
-        if (imageUrl) {
-            console.log(`📸 [FB Service] Đang gửi ảnh mẫu sản phẩm: ${imageUrl}`);
+        if (imageUrls.length === 1) {
+            console.log(`📸 [FB Service] Gửi 1 ảnh sản phẩm lẻ: ${imageUrls[0]}`);
             try {
                 await axios.post(`https://graph.facebook.com/v19.0/me/messages?access_token=${accessToken}`, {
                     recipient: { id: senderPsid },
                     message: { 
                         attachment: { 
                             type: "image", 
-                            payload: { url: imageUrl, is_reusable: true } 
+                            payload: { url: imageUrls[0], is_reusable: true } 
                         } 
                     }
                 });
             } catch (imgErr) {
-                console.error("⚠️ Không gửi được ảnh (Có thể lỗi link ảnh):", imgErr.message);
+                console.error("⚠️ Lỗi gửi ảnh đơn:", imgErr.message);
             }
-        } 
+        }
 
-        // BƯỚC 2: GỬI NỘI DUNG CHỮ + NÚT BẤM (QUICK REPLIES HOẶC WEBVIEW) NGAY PHÍA SAU
         if (formatted && (formatted.text || formatted.attachment)) {
             await axios.post(`https://graph.facebook.com/v19.0/me/messages?access_token=${accessToken}`, {
                 recipient: { id: senderPsid },
