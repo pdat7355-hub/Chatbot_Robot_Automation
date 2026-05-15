@@ -1,25 +1,28 @@
-// C:\Users\Hi\OneDrive\Desktop\TCCS\Chatbot\chatbot_server\services\webService.js
+// services/webService.js
 
 function formatForWeb(responseText, originalResult = {}) {
-    // 1. Lấy link ảnh và Nút bấm (giữ nguyên logic cũ)
+    // 1. Lấy link ảnh
     const urlRegex = /https?:\/\/[^\s"<>]+(?:\.jpg|\.jpeg|\.png|\.gif|thumbnail\?[^\s"<>]+)/i;
     const imageUrl = (responseText.match(urlRegex) || [])[0] || null;
 
-    const buttonRegex = /\[(.*?)\]/g;
-    const buttons = [...responseText.matchAll(buttonRegex)].map(m => m[1]);
+    // 2. Lấy Nút bấm [Nhãn] hoặc [Nhãn|Lệnh]
+    const buttonRegex = /\[([^\]|]+)\|?([^\]]*)\]/g;
+    const buttons = [...responseText.matchAll(buttonRegex)].map(m => ({
+        label: m[1].trim(),
+        command: m[2] ? m[2].trim() : m[1].trim()
+    }));
 
-    // 2. Làm sạch text để không hiện mã HTML hay [Nút]
-    let cleanText = responseText.replace(buttonRegex, '').replace(/<img[^>]*>/g, "").trim();
+    // 3. Làm sạch text (Xóa thẻ img và các khối [Nút])
+    let cleanText = responseText.replace(/\[.*?\]/g, '').replace(/<img[^>]*>/g, "").trim();
 
-    // 3. QUAN TRỌNG: Lấy danh sách sản phẩm đã lọc
-    // Tùy vào logicHandler của bạn trả về tên biến là 'inventory' hay 'products'
-    const products = originalResult.inventory || originalResult.products || [];
+    // 4. Lấy danh sách sản phẩm từ kết quả gốc của "Bộ não"
+    const products = originalResult?.inventory || originalResult?.products || [];
 
     return {
-        reply: cleanText || "Dạ Mẹ xem mẫu đúng size bé nhà mình ở dưới nhen:",
+        reply: cleanText || "Dạ Mẹ xem mẫu bên dưới nhen:",
         image: imageUrl,
         buttons: buttons,
-        products: products // Trả mảng này về để Web hiển thị Card sản phẩm
+        products: products 
     };
 }
 
