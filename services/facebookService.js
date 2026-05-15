@@ -1,3 +1,4 @@
+// C:\Users\Hi\OneDrive\Desktop\TCCS\Chatbot\chatbot_server\services\facebookService.js
 const axios = require('axios');
 
 /**
@@ -16,30 +17,28 @@ function cleanTextContent(text) {
 function formatMessage(text, psid) {
     const cleanText = cleanTextContent(text);
 
-    // 1. XỬ LÝ FORM CHỐT ĐƠN (Giữ nguyên Webview cũ của bạn)
-
-    if (text.includes("[[SHOW_ORDER_FORM")) {
-    const appUrl = process.env.APP_URL || 'https://chatbot-robot-automation.onrender.com';
-    return {
-        attachment: {
-            type: "template",
-            payload: {
-                template_type: "button",
-                text: "Dạ Mẹ nhấn vào nút bên dưới để điền thông tin cho bé nhen! ❤️",
-                buttons: [{
-                    type: "web_url",
-                    url: `${appUrl}/order-form.html?userId=${psid}`, 
-                    title: "📝 ĐIỀN THÔNG TIN",
-                    webview_height_ratio: "full", // Mở toàn màn hình cho dễ nhìn
-                    // TẠM THỜI TẮT extension để bỏ qua bộ lọc Whitelist của Facebook
-                    messenger_extensions: false 
-                }]
+    // 1. XỬ LÝ FORM CHỐT ĐƠN (Giữ nguyên Webview của bạn)
+    if (text.includes("[[SHOW_ORDER_FORM") || text.toUpperCase().includes("ACTION_CONFIRM")) {
+        const appUrl = process.env.APP_URL || 'https://chatbot-robot-automation.onrender.com';
+        return {
+            attachment: {
+                type: "template",
+                payload: {
+                    template_type: "button",
+                    text: cleanText || "Dạ Mẹ nhấn vào nút bên dưới để điền thông tin cho bé nhen! ❤️",
+                    buttons: [{
+                        type: "web_url",
+                        url: `${appUrl}/order-form.html?userId=${psid}`, 
+                        title: "📝 ĐIỀN THÔNG TIN",
+                        webview_height_ratio: "full", // Mở toàn màn hình cho dễ nhìn
+                        messenger_extensions: false 
+                    }]
+                }
             }
-        }
-    };
-}
+        };
+    }
+
     // 2. TỰ ĐỘNG BẮT SĐT (Nếu nội dung có chữ SĐT/Số điện thoại)
-    // Cách này giúp khách gửi SĐT chuẩn 100% không lan man
     if (cleanText.toLowerCase().includes("sđt") || cleanText.toLowerCase().includes("số điện thoại")) {
         return {
             text: cleanText,
@@ -52,7 +51,6 @@ function formatMessage(text, psid) {
     const matches = [...text.matchAll(buttonRegex)];
 
     if (matches.length > 0) {
-        // Nếu là yêu cầu địa chỉ, gợi ý sẵn mẫu để khách đỡ gõ sai
         const isAskingAddress = cleanText.toLowerCase().includes("địa chỉ");
         
         const quickReplies = matches.map(match => {
@@ -85,10 +83,11 @@ function formatMessage(text, psid) {
 }
 
 /**
- * Trích xuất Link ảnh
+ * Trích xuất Link ảnh (Hỗ trợ quét link ảnh sạch hơn)
  */
 function extractImageUrl(text) {
-    const urlRegex = /https?:\/\/[^\s"<>]+(?:\.jpg|\.jpeg|\.png|\.gif)/i;
+    if (!text) return null;
+    const urlRegex = /https?:\/\/[^\s"<>]+密*(?:\.jpg|\.jpeg|\.png|\.gif|\.webp|thumbnail\?[^\s"<>]+)/i;
     const match = text.match(urlRegex);
     return match ? match[0] : null;
 }
@@ -102,43 +101,26 @@ async function sendResponse(senderPsid, responseText) {
         const imageUrl = extractImageUrl(responseText);
         const formatted = formatMessage(responseText, senderPsid);
         
-        // TRƯỜNG HỢP 1: CÓ ẢNH VÀ NÚT BẤM (Dùng Generic Template cho ĐẸP)
-        if (imageUrl && formatted.quick_replies) {
-             await axios.post(`https://graph.facebook.com/v19.0/me/messages?access_token=${accessToken}`, {
-                recipient: { id: senderPsid },
-                message: {
-                    attachment: {
-                        type: "template",
-                        payload: {
-                            template_type: "generic",
-                            elements: [{
-                                title: "Hương Kid tư vấn ạ! ❤️",
-                                image_url: imageUrl,
-                                subtitle: formatted.text,
-                                // Chuyển Quick Replies thành Buttons cho Generic (tối đa 3 nút)
-                                buttons: formatted.quick_replies
-                                    .filter(qr => qr.content_type === "text")
-                                    .slice(0, 3)
-                                    .map(qr => ({
-                                        type: "postback",
-                                        title: qr.title,
-                                        payload: qr.payload
-                                    }))
-                            }]
-                        }
-                    }
-                }
-            });
-        } 
-        // TRƯỜNG HỢP 2: CHỈ CÓ ẢNH HOẶC CHỈ CÓ TEXT/QUICK REPLY
-        else {
-            if (imageUrl) {
+        // BƯỚC 1: CỨ CÓ ẢNH LÀ GỬI RIÊNG TRƯỚC (Đảm bảo 100% hiển thị ảnh mẫu)
+        if (imageUrl) {
+            console.log(`📸 [FB Service] Đang gửi ảnh mẫu sản phẩm: ${imageUrl}`);
+            try {
                 await axios.post(`https://graph.facebook.com/v19.0/me/messages?access_token=${accessToken}`, {
                     recipient: { id: senderPsid },
-                    message: { attachment: { type: "image", payload: { url: imageUrl } } }
+                    message: { 
+                        attachment: { 
+                            type: "image", 
+                            payload: { url: imageUrl, is_reusable: true } 
+                        } 
+                    }
                 });
+            } catch (imgErr) {
+                console.error("⚠️ Không gửi được ảnh (Có thể lỗi link ảnh):", imgErr.message);
             }
-            
+        } 
+
+        // BƯỚC 2: GỬI NỘI DUNG CHỮ + NÚT BẤM (QUICK REPLIES HOẶC WEBVIEW) NGAY PHÍA SAU
+        if (formatted && (formatted.text || formatted.attachment)) {
             await axios.post(`https://graph.facebook.com/v19.0/me/messages?access_token=${accessToken}`, {
                 recipient: { id: senderPsid },
                 message: formatted
@@ -147,7 +129,7 @@ async function sendResponse(senderPsid, responseText) {
 
         console.log(`✅ [FB Service] Đã xử lý tin nhắn sạch cho khách: ${senderPsid}`);
     } catch (err) {
-        console.error("❌ [FB Service] Lỗi:", err.response?.data || err.message);
+        console.error("❌ [FB Service] Lỗi nghiêm trọng:", err.response?.data || err.message);
     }
 }
 
