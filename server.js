@@ -18,10 +18,8 @@ const { identify } = require('./processors/recognizer');
 const { handleTraps } = require('./processors/commandTraps');
 const systemChecker = require('./utils/systemChecker');
 
-
 // Import AI Service
 const aiService = require('./processors/logicHandler/aiService'); 
-
 
 const app = express();
 app.use(express.json());
@@ -29,6 +27,7 @@ app.use(express.static('public'));
 
 // Biến tạm để chặn trùng tin nhắn từ Webhook
 const processedMessages = new Set();
+const userStates = new Map(); // Lưu trạng thái chốt đơn tạm thời
 
 // =========================================================
 // 🚀 QUY TRÌNH XỬ LÝ CHAT CHUẨN (HƯƠNG KID WORKFLOW)
@@ -112,10 +111,6 @@ async function processChatLogicWithTrace(userId, message) {
     }
 }
 
-
-
-
-
 // --- API ENDPOINTS ---
 
 app.post('/webhook', async (req, res) => {
@@ -132,17 +127,14 @@ app.post('/webhook', async (req, res) => {
                 let received_text = "";
 
                 if (event.message && event.message.quick_reply) {
-                    // Nếu khách bấm Quick Reply (nút nằm trên bàn phím)
                     received_text = event.message.quick_reply.payload;
                 } else if (event.message && event.message.text) {
-                    // Nếu khách gõ chữ bình thường
                     received_text = event.message.text;
                 } else if (event.postback) {
-                    // Nếu khách bấm nút trên Template (nút nằm trong tin nhắn)
                     received_text = event.postback.payload;
                 }
 
-                // --- KIỂM TRA TRÙNG TIN NHẮN (Chỉ áp dụng cho event.message) ---
+                // --- KIỂM TRA TRÙNG TIN NHẮN ---
                 let message_id = event.message?.mid;
                 if (message_id) {
                     if (processedMessages.has(message_id)) continue;
@@ -150,14 +142,10 @@ app.post('/webhook', async (req, res) => {
                     setTimeout(() => processedMessages.delete(message_id), 600000);
                 }
 
-                // --- GỬI ĐI XỬ LÝ (Chỉ gọi một lần duy nhất) ---
+                // --- GỬI ĐI XỬ LÝ ---
                 if (received_text) {
                     console.log(`📩 Nhận lệnh từ ${sender_id}: ${received_text}`);
-                    
-                    // 1. "Bộ não" xử lý logic
                     const result = await processChatLogicWithTrace(sender_id, received_text);
-
-                    // 2. "Chi chi" hiển thị lên Facebook
                     await facebookService.sendResponse(sender_id, result.reply);
                 }
             }
@@ -167,26 +155,18 @@ app.post('/webhook', async (req, res) => {
     }
 });
 
-// =========================================================
-// 🌐 ENDPOINT CHO GIAO DIỆN WEB (TESTING)
-// =========================================================
 app.post('/chat', async (req, res) => {
     try {
         const { userId, message } = req.body;
-        
-        // Gọi bộ não xử lý (vẫn dùng chung logic với Facebook)
         const result = await processChatLogicWithTrace(userId || "WEB_TEST", message);
-
-        // Dùng module Web độc lập để đóng gói lại dữ liệu hiển thị
         const webDisplay = webService.formatForWeb(result.reply || "", result);
 
-        // Trả về JSON sạch cho giao diện Web
         res.json({
             ...result,
             reply: webDisplay.reply,
             image: webDisplay.image,
             buttons: webDisplay.buttons,
-            products: webDisplay.products // Danh sách mẫu đã lọc sẽ xuất hiện ở đây
+            products: webDisplay.products 
         });
         
     } catch (error) {
@@ -195,6 +175,56 @@ app.post('/chat', async (req, res) => {
     }
 });
 
+// =========================================================
+// 📦 ENDPOINT TIẾP NHẬN DỮ LIỆU TỪ FORM CHỐT ĐƠN WEBVIEW
+// =========================================================
+app.post('/api/submit-order', async (req, res) => {
+    try {
+        const { userId, name, phone, address } = req.body;
+
+        // Kiểm tra xem dữ liệu form gửi lên có bị trống trường nào không
+        if (!userId || !name || !phone || !address) {
+            return res.status(400).json({ success: false, message: "Mẹ điền thiếu thông tin mất rồi nhen!" });
+        }
+
+        console.log(`\n📦 [Form Webview] Có đơn chốt mới từ khách ${userId}:`);
+        console.log(`   - Tên: ${name} | SĐT: ${phone} | ĐC: ${address}`);
+
+        // 1. Lưu thông tin vừa điền trực tiếp vào file Excel/Google Sheets
+        await googleSheets.syncCustomerToExcel(userId, {
+            name: name,
+            phone: phone,
+            address: address,
+            note: "Khách tự điền qua Form Webview"
+        });
+
+        // 2. Cập nhật lại bộ nhớ tạm (Session) để hệ thống nhận biết SĐT/Địa chỉ mới
+        let session = sessionManager.get(userId);
+        if (session) {
+            session.entities = session.entities || {};
+            session.entities.name = name;
+            session.entities.phone = phone;
+            session.entities.address = address;
+            sessionManager.update(userId, session);
+        }
+
+        // 3. Gửi tin nhắn xác nhận định dạng văn bản SẠCH qua Messenger cho khách yên tâm
+        const confirmText = `✅ Hệ thống Hương Kid đã ghi nhận thông tin của Mẹ thành công ạ:\n\n` +
+                            `👤 Tên: ${name}\n` +
+                            `📞 SĐT: ${phone}\n` +
+                            `📍 Địa chỉ: ${address}\n\n` +
+                            `Em chuẩn bị hàng rồi gửi sớm cho bé nhen! ❤️ Cảm ơn Mẹ nhiều.`;
+                            
+        await facebookService.sendResponse(userId, confirmText);
+
+        // Trả kết quả thành công về cho Trình duyệt để xử lý đóng Form
+        return res.status(200).json({ success: true });
+
+    } catch (error) {
+        console.error("❌ Lỗi xử lý dữ liệu Form:", error);
+        return res.status(500).json({ success: false, message: "Lỗi Server: " + error.message });
+    }
+});
 
 // --- KHỞI CHẠY ---
 const PORT = process.env.PORT || 3000;
