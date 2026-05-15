@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thông tin đơn hàng Hương Kid</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background: #f4f4f4; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; background: #ff4757; color: white; border: none; border-radius: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h3>🛍️ Xác nhận đơn hàng</h3>
+    <div class="form-group">
+        <label>Tên của Mẹ/Bé:</label>
+        <input type="text" id="name" placeholder="Ví dụ: Mẹ Bé Bo">
+    </div>
+    <div class="form-group">
+        <label>Số điện thoại:</label>
+        <input type="tel" id="phone" placeholder="Bắt buộc 10 số">
+    </div>
+    <div class="form-group">
+        <label>Địa chỉ nhận hàng:</label>
+        <input type="text" id="address" placeholder="Số nhà, tên đường, tỉnh thành...">
+    </div>
+    <button onclick="submitForm()">XÁC NHẬN GỬI</button>
+
+    <script>
+        // Cần tích hợp Messenger Extensions SDK để đóng cửa sổ sau khi xong
+        (function(d, s, id){
+          var js, fjs = d.getElementsByTagName(s)[0];
+          if (d.getElementById(id)) {return;}
+          js = d.createElement(s); js.id = id;
+          js.src = "//connect.facebook.net/en_US/messenger.Extensions.js";
+          fjs.parentNode.insertBefore(js, fjs);
+        }(document, 'script', 'Messenger'));
+
+        function submitForm() {
+            const data = {
+                name: document.getElementById('name').value,
+                phone: document.getElementById('phone').value,
+                address: document.getElementById('address').value
+            };
+            
+            // Gửi dữ liệu về Server của bạn qua API
+            fetch('/api/submit-order', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            }).then(() => {
+                // Đóng Webview sau khi gửi thành công
+                MessengerExtensions.requestCloseBrowser(function success() {}, function error(err) {});
+            });
+        }
+    </script>
+</body>
+</html>
