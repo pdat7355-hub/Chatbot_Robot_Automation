@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Thông tin đơn hàng Hương Kid</title>
     <style>
@@ -8,7 +9,8 @@
         .form-group { margin-bottom: 15px; }
         label { display: block; margin-bottom: 5px; font-weight: bold; }
         input { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
-        button { width: 100%; padding: 12px; background: #ff4757; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button { width: 100%; padding: 12px; background: #ff4757; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
     </style>
 </head>
 <body>
@@ -28,7 +30,11 @@
     <button onclick="submitForm()">XÁC NHẬN GỬI</button>
 
     <script>
-        // Cần tích hợp Messenger Extensions SDK để đóng cửa sổ sau khi xong
+        // 1. TÍCH HỢP MESSENGER EXTENSIONS SDK CHUẨN ĐỂ ĐÓNG WEBVIEW VỐN CÓ CỦA FACEBOOK
+        window.extAsyncInit = function() {
+            console.log("Facebook Messenger Extension SDK đã sẵn sàng.");
+        };
+
         (function(d, s, id){
           var js, fjs = d.getElementsByTagName(s)[0];
           if (d.getElementById(id)) {return;}
@@ -37,22 +43,68 @@
           fjs.parentNode.insertBefore(js, fjs);
         }(document, 'script', 'Messenger'));
 
-        function submitForm() {
-            const data = {
-                name: document.getElementById('name').value,
-                phone: document.getElementById('phone').value,
-                address: document.getElementById('address').value
-            };
-            
-            // Gửi dữ liệu về Server của bạn qua API
-            fetch('/api/submit-order', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            }).then(() => {
-                // Đóng Webview sau khi gửi thành công
-                MessengerExtensions.requestCloseBrowser(function success() {}, function error(err) {});
-            });
+        // 2. HÀM XỬ LÝ GỬI ĐƠN HÀNG
+        async function submitForm() {
+            const name = document.getElementById('name').value.trim();
+            const phone = document.getElementById('phone').value.trim();
+            const address = document.getElementById('address').value.trim();
+
+            // Kiểm tra xem khách đã nhập đủ thông tin chưa
+            if (!name || !phone || !address) {
+                alert("Mẹ vui lòng điền đầy đủ Tên, SĐT và Địa chỉ để em lên đơn nhen! ❤️");
+                return;
+            }
+
+            // Lấy userId (PSID) của khách từ đường dẫn URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const userId = urlParams.get('userId');
+
+            if (!userId) {
+                alert("Không tìm thấy mã người dùng. Mẹ vui lòng mở lại link từ Messenger nhé!");
+                return;
+            }
+
+            // Đổi chữ trên nút để tránh khách bấm liên tục (Spam)
+            const btn = document.querySelector('button');
+            btn.innerText = "⏳ ĐANG GỬI...";
+            btn.disabled = true;
+
+            try {
+                // 3. GỬI DỮ LIỆU VỀ SERVER NODE.JS CỦA BẠN
+                const response = await fetch('/api/submit-order', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ userId, name, phone, address })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert("🎉 Đơn hàng của Mẹ đã được hệ thống Hương Kid ghi nhận thành công ạ!");
+                    
+                    // 4. Đóng cửa sổ chat sau khi hoàn tất thành công
+                    if (window.MessengerExtensions) {
+                        MessengerExtensions.requestCloseBrowser(function success() {
+                            console.log("Đóng Webview thành công");
+                        }, function error(err) {
+                            console.error("Lỗi đóng webview:", err);
+                            // Nếu lỗi không tự đóng được (chưa whitelist), ứng dụng vẫn an toàn vì dữ liệu đã lưu
+                        });
+                    }
+                } else {
+                    alert("⚠️ Có lỗi xảy ra: " + result.message);
+                    btn.innerText = "XÁC NHẬN GỬI";
+                    btn.disabled = false;
+                }
+
+            } catch (error) {
+                console.error("Lỗi kết nối:", error);
+                alert("❌ Lỗi kết nối mạng hoặc server bận, Mẹ thử lại giúp em nhen!");
+                btn.innerText = "XÁC NHẬN GỬI";
+                btn.disabled = false;
+            }
         }
     </script>
 </body>
