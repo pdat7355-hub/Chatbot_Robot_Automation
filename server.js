@@ -12,6 +12,7 @@ const sessionManager = require('./core/sessionManager');
 const analyzer = require('./processors/analyzer');
 const googleSheets = require('./services/googleSheets');
 const facebookService = require('./services/facebookService');
+const webService = require('./services/webService');
 const logicHandler = require('./processors/logicHandler/index'); 
 const { identify } = require('./processors/recognizer');
 const { handleTraps } = require('./processors/commandTraps');
@@ -120,28 +121,43 @@ async function processChatLogicWithTrace(userId, message) {
 app.post('/webhook', async (req, res) => {
     let body = req.body;
     if (body.object === 'page') {
-        res.status(200).send('EVENT_RECEIVED'); // Phản hồi FB ngay để tránh gửi lặp
+        res.status(200).send('EVENT_RECEIVED');
 
         for (let entry of body.entry) {
             if (entry.messaging) {
                 let event = entry.messaging[0];
                 let sender_id = event.sender.id;
-                let message_id = event.message?.mid;
+                
+                // --- XÁC ĐỊNH NỘI DUNG TIN NHẮN ---
+                let received_text = "";
 
-                // Chặn xử lý trùng ID tin nhắn
-                if (message_id && processedMessages.has(message_id)) continue;
+                if (event.message && event.message.quick_reply) {
+                    // Nếu khách bấm Quick Reply (nút nằm trên bàn phím)
+                    received_text = event.message.quick_reply.payload;
+                } else if (event.message && event.message.text) {
+                    // Nếu khách gõ chữ bình thường
+                    received_text = event.message.text;
+                } else if (event.postback) {
+                    // Nếu khách bấm nút trên Template (nút nằm trong tin nhắn)
+                    received_text = event.postback.payload;
+                }
+
+                // --- KIỂM TRA TRÙNG TIN NHẮN (Chỉ áp dụng cho event.message) ---
+                let message_id = event.message?.mid;
                 if (message_id) {
+                    if (processedMessages.has(message_id)) continue;
                     processedMessages.add(message_id);
                     setTimeout(() => processedMessages.delete(message_id), 600000);
                 }
 
-                // CHỖ NÀY LÀ QUAN TRỌNG NHẤT:
-                if (event.message && event.message.text) {
-                    // 1. Gửi tin nhắn vào "Bộ não" để xử lý logic (Excel/AI)
-                    const result = await processChatLogicWithTrace(sender_id, event.message.text);
+                // --- GỬI ĐI XỬ LÝ (Chỉ gọi một lần duy nhất) ---
+                if (received_text) {
+                    console.log(`📩 Nhận lệnh từ ${sender_id}: ${received_text}`);
+                    
+                    // 1. "Bộ não" xử lý logic
+                    const result = await processChatLogicWithTrace(sender_id, received_text);
 
-                    // 2. Gửi kết quả sang "Chi chi" (Facebook Service) để định dạng ảnh/nút và hiển thị
-                    // Xóa bỏ hàm callSendAPI cũ, dùng facebookService mới tách ra
+                    // 2. "Chi chi" hiển thị lên Facebook
                     await facebookService.sendResponse(sender_id, result.reply);
                 }
             }
@@ -158,18 +174,26 @@ app.post('/chat', async (req, res) => {
     try {
         const { userId, message } = req.body;
         
-        // 1. Gửi vào bộ não xử lý logic
+        // Gọi bộ não xử lý (vẫn dùng chung logic với Facebook)
         const result = await processChatLogicWithTrace(userId || "WEB_TEST", message);
-        
-        // 2. Trả kết quả về trực tiếp cho giao diện Web hiển thị
-        // Lưu ý: Web dùng res.json, còn Facebook dùng facebookService.sendResponse
-        res.json(result); 
+
+        // Dùng module Web độc lập để đóng gói lại dữ liệu hiển thị
+        const webDisplay = webService.formatForWeb(result.reply || "", result);
+
+        // Trả về JSON sạch cho giao diện Web
+        res.json({
+            ...result,
+            reply: webDisplay.reply,
+            image: webDisplay.image,
+            buttons: webDisplay.buttons,
+            products: webDisplay.products // Danh sách mẫu đã lọc sẽ xuất hiện ở đây
+        });
         
     } catch (error) {
-        console.error("❌ Lỗi API Chat:", error);
-        res.status(500).json({ reply: "Dạ em lỗi xíu, Mẹ nhắn lại nhen!" });
+        console.error("❌ Lỗi hiển thị Web:", error);
+        res.json({ reply: "Dạ em lỗi xíu, Mẹ nhắn lại nhen!", products: [] });
     }
-}); 
+});
 
 
 // --- KHỞI CHẠY ---
