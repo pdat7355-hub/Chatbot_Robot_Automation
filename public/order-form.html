@@ -5,61 +5,48 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Thông tin đơn hàng Hương Kid</title>
     <style>
-        body { font-family: sans-serif; padding: 20px; background: #f4f4f4; }
+        body { font-family: sans-serif; padding: 20px; background: #f4f4f4; margin: 0; }
+        .container { max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         .form-group { margin-bottom: 15px; }
-        label { display: block; margin-bottom: 5px; font-weight: bold; }
-        input { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
-        button { width: 100%; padding: 12px; background: #ff4757; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; color: #333; }
+        input { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; font-size: 15px; }
+        button { width: 100%; padding: 14px; background: #ff4757; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 16px; transition: 0.2s; }
         button:disabled { background: #ccc; cursor: not-allowed; }
+        
+        /* Giao diện màn hình thành công */
+        .success-screen { text-align: center; padding: 40px 10px; animation: fadeIn 0.5s ease; }
+        .success-icon { font-size: 60px; margin-bottom: 15px; }
+        .success-title { color: #2ed573; margin-bottom: 10px; font-size: 22px; }
+        .success-desc { color: #57606f; font-size: 15px; line-height: 1.6; }
+        .instruction-box { background: #fff5f5; padding: 15px; border-radius: 8px; margin: 25px 0; border: 1px dashed #ff4757; }
+        .instruction-text { color: #ff4757; font-weight: bold; margin: 0; font-size: 15px; }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
     </style>
 </head>
 <body>
-    <h3>🛍️ Xác nhận đơn hàng</h3>
-    <div class="form-group">
-        <label>Tên của Mẹ/Bé:</label>
-        <input type="text" id="name" placeholder="Ví dụ: Mẹ Bé Bo">
+    <div class="container" id="form-container">
+        <h3>🛍️ Xác nhận đơn hàng</h3>
+        <div class="form-group">
+            <label>Tên của Mẹ/Bé:</label>
+            <input type="text" id="name" placeholder="Ví dụ: Mẹ Bé Bo">
+        </div>
+        <div class="form-group">
+            <label>Số điện thoại:</label>
+            <input type="tel" id="phone" placeholder="Bắt buộc 10 số">
+        </div>
+        <div class="form-group">
+            <label>Địa chỉ nhận hàng:</label>
+            <input type="text" id="address" placeholder="Số nhà, tên đường, tỉnh thành...">
+        </div>
+        <button onclick="submitForm()">XÁC NHẬN GỬI</button>
     </div>
-    <div class="form-group">
-        <label>Số điện thoại:</label>
-        <input type="tel" id="phone" placeholder="Bắt buộc 10 số">
-    </div>
-    <div class="form-group">
-        <label>Địa chỉ nhận hàng:</label>
-        <input type="text" id="address" placeholder="Số nhà, tên đường, tỉnh thành...">
-    </div>
-    <button onclick="submitForm()">XÁC NHẬN GỬI</button>
 
     <script>
-        // 1. TÍCH HỢP MESSENGER EXTENSIONS SDK
-        window.extAsyncInit = function() {
-            console.log("Facebook Messenger Extension SDK đã sẵn sàng.");
-        };
-
-        (function(d, s, id){
-          var js, fjs = d.getElementsByTagName(s)[0];
-          if (d.getElementById(id)) {return;}
-          js = d.createElement(s); js.id = id;
-          js.src = "//connect.facebook.net/en_US/messenger.Extensions.js";
-          fjs.parentNode.insertBefore(js, fjs);
-        }(document, 'script', 'Messenger'));
-
-        // Hàm hỗ trợ đóng cửa sổ bằng mọi cách có thể
-        function forceCloseWebview() {
-            if (window.MessengerExtensions) {
-                MessengerExtensions.requestCloseBrowser(function success() {
-                    console.log("Đóng Webview thành công qua SDK");
-                }, function error(err) {
-                    console.error("Lỗi SDK, chuyển hướng sang phương thức dự phòng:", err);
-                    window.close();
-                    if(window.parent) window.parent.close();
-                });
-            } else {
-                window.close();
-                if(window.parent) window.parent.close();
-            }
-        }
-
-        // 2. HÀM XỬ LÝ GỬI ĐƠN HÀNG
+        // 1. HÀM XỬ LÝ GỬI ĐƠN HÀNG
         async function submitForm() {
             const name = document.getElementById('name').value.trim();
             const phone = document.getElementById('phone').value.trim();
@@ -83,7 +70,7 @@
             btn.disabled = true;
 
             try {
-                // 3. GỬI DỮ LIỆU VỀ SERVER NODE.JS
+                // 2. GỬI DỮ LIỆU VỀ SERVER NODE.JS
                 const response = await fetch('/api/submit-order', {
                     method: 'POST',
                     headers: {
@@ -95,9 +82,22 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    // ĐÃ BỎ LỆNH ALERT() Ở ĐÂY ĐỂ TRÁNH BỊ KHỰN LẠI
-                    // 4. Gọi hàm đóng cửa sổ lập tức
-                    forceCloseWebview();
+                    // 3. THAY ĐỔI TOÀN BỘ GIAO DIỆN THÀNH MÀN HÌNH BÁO THÀNH CÔNG ĐẸP MẮT
+                    document.getElementById('form-container').innerHTML = `
+                        <div class="success-screen">
+                            <div class="success-icon">🎉</div>
+                            <h2 class="success-title">GỬI THÔNG TIN THÀNH CÔNG!</h2>
+                            <p class="success-desc">
+                                Hệ thống <strong>Hương Kid</strong> đã ghi nhận thông tin của Mẹ thành công ạ.
+                            </p>
+                            <div class="instruction-box">
+                                <p class="instruction-text">
+                                    👇 Mẹ vui lòng bấm nút [ X ] hoặc chữ [ ĐÓNG ] ở góc trên màn hình để quay lại ô chat nhận hóa đơn nhen!
+                                </p>
+                            </div>
+                            <p style="color: #a4b0be; font-size: 13px; margin: 0;">Cảm ơn Mẹ nhiều nhiều ❤️</p>
+                        </div>
+                    `;
                 } else {
                     alert("⚠️ Có lỗi xảy ra: " + result.message);
                     btn.innerText = "XÁC NHẬN GỬI";
