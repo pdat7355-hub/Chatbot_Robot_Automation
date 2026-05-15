@@ -7,7 +7,7 @@ const axios = require('axios');
 function cleanTextContent(text) {
     return (text || "")
         .replace(/<[^>]*>/g, "") // Xóa sạch các thẻ html
-        .replace(/\[\[.*?\]\]/g, "") // Xóa các tag đặc biệt
+        .replace(/\[\[.*?\]\]/g, "") // Xóa các tag đặc biệt dạng [[...]]
         .trim();
 }
 
@@ -16,13 +16,13 @@ function cleanTextContent(text) {
  */
 function extractAllImageUrls(text) {
     if (!text) return [];
-    const urlRegex = /https?:\/\/[^\s"<>]+(?:\.jpg|\.jpeg|\.png|\.gif|\.webp|thumbnail\?[^\s"<>]+)/gi;
+    const urlRegex = /https?:\/\/[^\s"<>]+密*(?:\.jpg|\.jpeg|\.png|\.gif|\.webp|thumbnail\?[^\s"<>]+)/gi;
     const matches = text.match(urlRegex);
     return matches ? [...new Set(matches)] : []; // Loại bỏ trùng lặp nếu có
 }
 
 /**
- * Hàm phân tích tin nhắn để dựng cấu trúc Facebook
+ * Hàm phân tích tin nhắn để dựng cấu trúc Facebook (Quick Replies / Webview)
  */
 function formatMessage(text, psid) {
     const cleanText = cleanTextContent(text);
@@ -92,85 +92,75 @@ function formatMessage(text, psid) {
 /**
  * Hàm chính thực hiện gửi tin nhắn thông minh
  */
-// C:\Users\Hi\OneDrive\Desktop\TCCS\Chatbot\chatbot_server\services\facebookService.js
-
-// ... (Các hàm cleanTextContent, extractAllImageUrls, formatMessage giữ nguyên phía trên) ...
-
-/**
- * Hàm chính thực hiện gửi tin nhắn thông minh
- */
 async function sendResponse(senderPsid, responseText) {
     try {
         const accessToken = process.env.FB_PAGE_ACCESS_TOKEN;
         const imageUrls = extractAllImageUrls(responseText);
         
-        // --- TRƯỜNG HỢP NHIỀU SẢN PHẨM (Gộp thông tin lên Album Carousel & Xóa bảng text dưới) ---
+        // --- TRƯỜNG HỢP NHIỀU SẢN PHẨM (Dựng Album Carousel) ---
         if (imageUrls.length >= 2) {
-            console.log(`📚 [FB Service] Đang bóc tách thông tin chi tiết cho ${imageUrls.length} sản phẩm...`);
+            console.log(`📚 [FB Service] Đang cấu trúc lại Album Carousel cho ${imageUrls.length} sản phẩm...`);
 
-            // 1. Tách văn bản thành các khối nhỏ theo từng sản phẩm
-            // Sử dụng các ký tự phân tách phổ biến như 🔹 hoặc **Mã:
+            // 1. Tách văn bản thành các khối nhỏ theo từng sản phẩm để không lấy râu ông nọ cắm cằm bà kia
             const blocks = responseText.split(/(?=🔹|\*\*Mã:)/i).filter(b => b.includes('http'));
             const elements = [];
 
-            // 2. Duyệt qua từng khối để bóc tách: Mã, Tên, Giá, Nút bấm
+            // 2. Duyệt qua từng khối ảnh và text tương ứng
             for (let i = 0; i < imageUrls.length; i++) {
                 const currentUrl = imageUrls[i];
                 const currentBlock = blocks[i] || "";
 
-                // Bóc tách Mã sản phẩm (Ví dụ: G02, M01)
+                // Bóc tách Mã sản phẩm
                 const codeMatch = currentBlock.match(/\*\*Mã:\s*([^*]+)\*\*/i) || currentBlock.match(/Mã:\s*([^\n[-]+)/i);
                 const itemCode = codeMatch ? codeMatch[1].trim() : `Mẫu ${i + 1}`;
 
-                // Bóc tách Tên sản phẩm (Dòng chữ ngay sau Mã hoặc có icon 👕/👕/👚)
+                // Bóc tách Tên sản phẩm
                 const nameMatch = currentBlock.match(/(?:👕|👚|👕|🌱|👉|^)\s*([^\n$*|]+)/m);
                 let itemName = nameMatch ? nameMatch[1].trim() : "Quần áo trẻ em";
-                // Loại bỏ các chữ dư thừa nếu regex bắt nhầm cấu trúc giá
                 if (itemName.toLowerCase().includes("giá")) itemName = "Thời trang bé trai";
 
                 // Bóc tách Giá sản phẩm
                 const priceMatch = currentBlock.match(/Giá:\s*\*?([^*|\n]+)\*?/i);
                 const itemPrice = priceMatch ? priceMatch[1].trim() : "Liên hệ shop";
 
-                // Bóc tách cấu trúc nút bấm tương ứng trong khối [Nhãn|Lệnh]
-                const buttonRegex = /\[([^\]|]+)\|?([^\]]*)\]/g;
-                const buttonMatches = [...currentBlock.matchAll(buttonRegex)];
+                // Bóc tách cấu trúc nút bấm: Tìm kiếm toàn bộ chuỗi nằm trong cặp ngoặc vuông [LỆNH] nguyên bản
+                const rawButtonRegex = /(\[[^\]]+\])/g;
+                const rawButtons = currentBlock.match(rawButtonRegex) || [];
                 
                 const buttons = [];
-                if (buttonMatches.length > 0) {
-                    // Lấy nút bấm đầu tiên của khối sản phẩm đó (Ví dụ: [CHỌN MẪU|ACTION_ADD:G02])
-                    const label = buttonMatches[0][1].trim();
-                    const command = buttonMatches[0][2] ? buttonMatches[0][2].trim() : label;
-                    
-                    // Nếu AI trả ra text thô dạng Lệnh hệ thống, ta đổi hiển thị cho đẹp mắt
-                    const cleanLabel = label.toUpperCase().includes("ACTION_ADD") ? `🛍️ CHỌN MẪU ${itemCode}` : label.substring(0, 20);
+                let finalPayload = `[ACTION_ADD:${itemCode}]`; // Giá trị payload dự phòng mặc định
 
-                    buttons.push({
-                        type: "postback",
-                        title: cleanLabel,
-                        payload: command
-                    });
-                } else {
-                    // Dự phòng nếu khối không có nút, tự tạo nút chọn theo Mã sản phẩm luôn
-                    buttons.push({
-                        type: "postback",
-                        title: `🛍️ CHỌN MẪU ${itemCode}`,
-                        payload: `ACTION_ADD:${itemCode}`
-                    });
+                if (rawButtons.length > 0) {
+                    // Lấy chính xác chuỗi thô bao gồm cả dấu ngoặc vuông (Ví dụ: "[ACTION_ADD:G02]")
+                    const rawText = rawButtons[0].trim();
+                    
+                    // Phân tách Nhãn và Lệnh bên trong dấu ngoặc vuông nếu có dấu gạch đứng "|"
+                    const innerContent = rawText.slice(1, -1); // Bỏ dấu [ và ]
+                    if (innerContent.includes('|')) {
+                        finalPayload = innerContent.split('|')[1].trim();
+                    } else {
+                        finalPayload = rawText; // Trả về nguyên văn chuỗi có ngoặc vuông [ACTION_ADD:G02]
+                    }
                 }
 
-                // Đẩy ô sản phẩm hoàn chỉnh vào mảng (Giới hạn tối đa 10 ô của Facebook)
+                // Thiết lập cấu trúc nút bấm Postback gửi lên Facebook
+                buttons.push({
+                    type: "postback",
+                    title: `🛍️ CHỌN MẪU ${itemCode}`, // Chỉ hiển thị chữ tiếng Việt đẹp ra ngoài màn hình
+                    payload: finalPayload            // GIỮ NGUYÊN lệnh thô hệ thống để cộng vào giỏ hàng thành công
+                });
+
                 if (elements.length < 10) {
                     elements.push({
-                        title: `Mã: ${itemCode} - ${itemName}`.substring(0, 80), // Facebook giới hạn 80 ký tự title
+                        title: `Mã: ${itemCode} - ${itemName}`.substring(0, 80),
                         image_url: currentUrl,
-                        subtitle: `💰 Giá: ${itemPrice}\nMẹ bấm nút bên dưới để chọn nhen!`.substring(0, 80), // Giới hạn 80 ký tự subtitle
+                        subtitle: `💰 Giá: ${itemPrice}\nMẹ bấm nút bên dưới để chọn nhen!`.substring(0, 80),
                         buttons: buttons
                     });
                 }
             }
 
-            // 3. Gửi Tin nhắn dạng Album xoay vòng lên Messenger
+            // Gửi cấu trúc Album hoàn chỉnh
             if (elements.length > 0) {
                 await axios.post(`https://graph.facebook.com/v19.0/me/messages?access_token=${accessToken}`, {
                     recipient: { id: senderPsid },
@@ -184,11 +174,9 @@ async function sendResponse(senderPsid, responseText) {
                         }
                     }
                 });
-                console.log(`✅ [FB Service] Đã gửi Album Carousel tích hợp thông tin thành công.`);
             }
 
-            // 4. KIỂM TRA VÀ CHỈ GỬI LỜI CHÀO/NÚT GIỎ HÀNG Ở CUỐI (Bỏ hoàn toàn bảng kê danh sách cũ)
-            // Lọc ra các dòng text chung ở cuối tin nhắn (Ví dụ: Mẹ ưng mẫu nào bấm nút..., Hoặc bấm xem giỏ hàng...)
+            // 3. LỌC VÀ GỬI TEXT HƯỚNG DẪN / GIỎ HÀNG Ở CUỐI (Xóa bỏ hoàn toàn bảng kê chữ xanh cũ)
             const lines = responseText.split('\n');
             const bottomTextLines = lines.filter(line => 
                 !line.includes('http') && 
@@ -201,14 +189,13 @@ async function sendResponse(senderPsid, responseText) {
             bottomText = cleanTextContent(bottomText);
 
             if (bottomText) {
-                // Gửi nốt câu dặn dò hoặc nút Xem giỏ hàng nếu có
                 const formattedBottom = formatMessage(bottomText, senderPsid);
                 await axios.post(`https://graph.facebook.com/v19.0/me/messages?access_token=${accessToken}`, {
                     recipient: { id: senderPsid },
                     message: formattedBottom
                 });
             }
-            return; // Hoàn thành luồng danh mục sản phẩm, thoát hàm
+            return;
         }
 
         // --- TRƯỜNG HỢP THÔNG THƯỜNG (1 ẢNH HOẶC KHÔNG CÓ ẢNH) ---
